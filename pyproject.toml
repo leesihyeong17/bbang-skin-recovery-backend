@@ -9,7 +9,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "django (>=6.0.7,<7.0.0)",
-    "django-cors-headers (>=4.9.0,<5.0.0)"
+    "django-cors-headers (>=4.9.0,<5.0.0)",
+    "mysqlclient (>=2.2.8,<3.0.0)",
+    "sshtunnel (>=0.4.0,<0.5.0)",
+    "paramiko (<3)"
 ]
 
 [tool.poetry]
