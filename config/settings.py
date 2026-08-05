@@ -100,11 +100,16 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+	'default': {
+		'ENGINE': 'django.db.backends.mysql',
+		'NAME': 'aftercare',
+		'USER': get_secret("DB_USER"), 
+		'PASSWORD': get_secret("DB_PW"), 
+		'HOST': get_secret("DB_HOST"),
+		'PORT': get_secret("DB_PORT"),
+	}
 }
+
 
 
 # Password validation
