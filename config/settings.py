@@ -55,11 +55,20 @@ DJANGO_APPS = [
 ]
 
 PROJECT_APPS = [
+    'accounts',
+    'protocols',
+    'care',
+    'checkins',
+    'reports',
+    'consult',
 
 ]
 
 THIRD_PARTY_APPS = [
     "corsheaders",
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "storages",
 
 ]
 
@@ -158,3 +167,26 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+
+# ============================================================
+# 인증 — Patient가 로그인 주체
+# ============================================================
+AUTH_USER_MODEL = "accounts.Patient"
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
+    "DEFAULT_RENDERER_CLASSES": (
+        "rest_framework.renderers.JSONRenderer",
+    ),
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),    # 데모 편의상 길게
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
+}
