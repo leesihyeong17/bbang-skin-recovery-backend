@@ -12,7 +12,10 @@ dependencies = [
     "django-cors-headers (>=4.9.0,<5.0.0)",
     "mysqlclient (>=2.2.8,<3.0.0)",
     "sshtunnel (>=0.4.0,<0.5.0)",
-    "paramiko (<3)"
+    "paramiko (<3)",
+    "pillow (>=12.3.0,<13.0.0)",
+    "boto3 (>=1.43.67,<2.0.0)",
+    "django-storages (>=1.14.6,<2.0.0)"
 ]
 
 [tool.poetry]
