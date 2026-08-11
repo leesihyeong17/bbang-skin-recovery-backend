@@ -15,7 +15,12 @@ from django.db import models
 
 from care.models import Surgery
 from protocols.models import ProcedureType
+from django.core.files.storage import storages
 
+
+def photo_storage():
+    # 인스턴스가 아니라 콜러블을 넘겨야 마이그레이션에 스토리지 객체가 안 박힌다
+    return storages["s3"]  # settings.py STORAGES["s3"]
 
 class Checkin(models.Model):
     """하루치 기록 묶음. 사진 3컷 → 증상 3항목 → 저장, 3스텝."""
@@ -72,7 +77,7 @@ class CheckinPhoto(models.Model):
 
     checkin = models.ForeignKey(Checkin, on_delete=models.CASCADE, related_name="photos")
     angle = models.CharField(max_length=6, choices=Angle.choices)
-    image = models.ImageField(upload_to="checkins/")              # 비공개 버킷. presigned URL로만 접근
+    image = models.ImageField(upload_to="checkins/", storage=photo_storage)
     taken_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
