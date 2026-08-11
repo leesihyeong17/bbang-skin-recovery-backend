@@ -1,0 +1,953 @@
+[
+  {
+    "model": "accounts.clinic",
+    "pk": 1,
+    "fields": {
+      "code": "SEOUL-N",
+      "name": {
+        "ko": "서울 N성형외과의원",
+        "ja": "ソウルN美容外科医院"
+      },
+      "address": {
+        "ko": "서울특별시 강남구 OO대로 000, N빌딩 5층",
+        "ja": "ソウル特別市 江南区 OO大路 000、Nビル5階"
+      },
+      "tel": "+82-2-000-0000",
+      "reply_hours": "KST 10:00-19:00"
+    }
+  },
+  {
+    "model": "accounts.clinicstaff",
+    "pk": 1,
+    "fields": {
+      "clinic": 1,
+      "name": {
+        "ko": "김서준",
+        "ja": "キム・ソジュン"
+      },
+      "name_romaji": "KIM SEOJUN",
+      "role": "director",
+      "license_no": "제12345호"
+    }
+  },
+  {
+    "model": "protocols.proceduretype",
+    "pk": 1,
+    "fields": {
+      "code": "rhinoplasty",
+      "name": {
+        "ko": "코성형 (융비술)",
+        "ja": "鼻形成術（隆鼻術）"
+      },
+      "program_days": 120,
+      "stage_map": [
+        {
+          "to": 3,
+          "name": {
+            "ko": "초기 안정",
+            "ja": "初期安定"
+          }
+        },
+        {
+          "to": 7,
+          "name": {
+            "ko": "부목·실밥",
+            "ja": "ギプス・抜糸"
+          }
+        },
+        {
+          "to": 14,
+          "name": {
+            "ko": "귀국 준비",
+            "ja": "帰国準備"
+          }
+        },
+        {
+          "to": 28,
+          "name": {
+            "ko": "생활 복귀",
+            "ja": "生活復帰"
+          }
+        },
+        {
+          "to": 60,
+          "name": {
+            "ko": "형태 안정",
+            "ja": "形態安定"
+          }
+        },
+        {
+          "to": 120,
+          "name": {
+            "ko": "마무리",
+            "ja": "仕上げ"
+          }
+        }
+      ],
+      "protocol_version": "v1.0",
+      "source_document": "",
+      "source_clinic": 1
+    }
+  },
+  {
+    "model": "protocols.caretasktemplate",
+    "pk": 1,
+    "fields": {
+      "procedure_type": 1,
+      "key": "antisep",
+      "icon": "🧴",
+      "name": {
+        "ko": "절개부 소독",
+        "ja": "切開部の消毒"
+      },
+      "day_from": 1,
+      "day_to": 7,
+      "times_per_day": 1,
+      "interval_days": 2,
+      "why": {
+        "ko": "실밥 뽑기 전까지 감염을 막는 유일한 방어선이에요. 식염수로 적신 거즈로 닦고 연고 순서예요.",
+        "ja": "抜糸までの間、感染を防ぐ唯一の防御線です。生理食塩水を含ませたガーゼで拭いてから軟膏を塗る順番です。"
+      },
+      "source_text": {
+        "ko": "실밥 제거 전까지(수술 후 1~7일) 멸균거즈에 생리식염수를 적셔 소독 후 항생제 연고를 도포합니다. 1~2일 간격으로 시행하며"
+      },
+      "source_ref": "수술 후 주의사항 · 1. 절개부 소독 및 상처 관리",
+      "weight": "1.00",
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.caretasktemplate",
+    "pk": 2,
+    "fields": {
+      "procedure_type": 1,
+      "key": "ice",
+      "icon": "🧊",
+      "name": {
+        "ko": "냉찜질",
+        "ja": "冷やす（アイシング）"
+      },
+      "day_from": 0,
+      "day_to": 3,
+      "times_per_day": 4,
+      "interval_days": null,
+      "why": {
+        "ko": "D+3 부기 최고조를 얼마나 낮추느냐가 D+7 실밥 제거일의 얼굴을 결정해요.",
+        "ja": "D+3の腫れのピークをどれだけ抑えられるかが、D+7の抜糸の日の顔を決めます。"
+      },
+      "source_text": {
+        "ko": "수술 후 3일까지 냉찜질(1일 4회)을 시행하고"
+      },
+      "source_ref": "수술 후 주의사항 · 2. 부기·멍 관리",
+      "weight": "1.00",
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.caretasktemplate",
+    "pk": 3,
+    "fields": {
+      "procedure_type": 1,
+      "key": "warm",
+      "icon": "♨️",
+      "name": {
+        "ko": "온찜질",
+        "ja": "温める（温罨法）"
+      },
+      "day_from": 4,
+      "day_to": 10,
+      "times_per_day": 2,
+      "interval_days": null,
+      "why": {
+        "ko": "냉찜질이 끝나는 D+4부터가 멍이 빠지는 구간이에요. 뜨겁지 않게, 미지근하게.",
+        "ja": "アイシングが終わるD+4からが青あざの引く時期です。熱くせず、ぬるめに。"
+      },
+      "source_text": {
+        "ko": "4일째부터 10일째까지는 미지근한 온찜질(1일 2회)로 전환합니다. 4일 이후 찜질은 뜨겁지 않은 온도를 유지합니다."
+      },
+      "source_ref": "수술 후 주의사항 · 2. 부기·멍 관리",
+      "weight": "1.00",
+      "order": 3
+    }
+  },
+  {
+    "model": "protocols.caretasktemplate",
+    "pk": 4,
+    "fields": {
+      "procedure_type": 1,
+      "key": "sleep45",
+      "icon": "🛏️",
+      "name": {
+        "ko": "상체 45° 수면",
+        "ja": "上体45°での就寝"
+      },
+      "day_from": 0,
+      "day_to": 28,
+      "times_per_day": 1,
+      "interval_days": null,
+      "why": {
+        "ko": "눕는 순간 아침 부기가 두 배가 돼요. 베개 두 개면 충분해요.",
+        "ja": "平らに寝ると朝の腫れが倍になります。枕を2つ重ねれば十分です。"
+      },
+      "source_text": {
+        "ko": "수술 후 4주간은 머리를 심장보다 높게(상체 45도) 유지하고 취침하며, 옆으로 눕거나 엎드려 자지 않습니다."
+      },
+      "source_ref": "수술 후 주의사항 · 3. 수면 자세",
+      "weight": "1.00",
+      "order": 4
+    }
+  },
+  {
+    "model": "protocols.caretasktemplate",
+    "pk": 5,
+    "fields": {
+      "procedure_type": 1,
+      "key": "walk",
+      "icon": "🚶",
+      "name": {
+        "ko": "짧은 보행",
+        "ja": "短い歩行"
+      },
+      "day_from": 1,
+      "day_to": 120,
+      "times_per_day": 3,
+      "interval_days": null,
+      "why": {
+        "ko": "혈전 예방이에요. 특히 귀국 비행 전후로는 꼭 필요해요.",
+        "ja": "血栓予防のためです。特に帰国便の前後には必ず必要です。"
+      },
+      "source_text": {
+        "ko": "수술 후 1일~ 가능 가벼운 일상생활 및 짧은 보행 (혈전 예방 목적, 1일 3회 권장)"
+      },
+      "source_ref": "수술 후 주의사항 · 5. 운동 및 일상 활동",
+      "weight": "1.00",
+      "order": 5
+    }
+  },
+  {
+    "model": "protocols.caretasktemplate",
+    "pk": 6,
+    "fields": {
+      "procedure_type": 1,
+      "key": "saline",
+      "icon": "💧",
+      "name": {
+        "ko": "코 안 생리식염수",
+        "ja": "鼻内の生理食塩水洗浄"
+      },
+      "day_from": 0,
+      "day_to": 21,
+      "times_per_day": 3,
+      "interval_days": null,
+      "why": {
+        "ko": "코 안에 굳은 피가 남으면 냄새와 염증으로 이어져요. 뿌리고 흘려보내기만 하세요.",
+        "ja": "鼻の中に固まった血が残ると、においや炎症につながります。かけて流すだけにしてください。"
+      },
+      "source_text": {
+        "ko": "코 안쪽은 생리식염수로 세척하되 코를 풀거나 세게 흡입하지 않습니다(수술 후 3주까지, 1일 3회 권장)."
+      },
+      "source_ref": "수술 후 주의사항 · 1. 절개부 소독 및 상처 관리",
+      "weight": "1.00",
+      "order": 6
+    }
+  },
+  {
+    "model": "protocols.caretasktemplate",
+    "pk": 7,
+    "fields": {
+      "procedure_type": 1,
+      "key": "tape",
+      "icon": "🩹",
+      "name": {
+        "ko": "압박 테이핑 교체",
+        "ja": "圧迫テーピングの交換"
+      },
+      "day_from": 8,
+      "day_to": 28,
+      "times_per_day": 1,
+      "interval_days": null,
+      "why": {
+        "ko": "부목을 뗀 다음이 오히려 중요해요. 테이핑이 코 모양을 잡아주는 시기예요.",
+        "ja": "ギプスを外した後こそ重要です。テーピングが鼻の形を保つ時期です。"
+      },
+      "source_text": {
+        "ko": "부목 제거 후(수술 후 8일)부터 3주간은 취침 시 압박 테이핑을 유지합니다."
+      },
+      "source_ref": "수술 후 주의사항 · 1. 절개부 소독 및 상처 관리",
+      "weight": "1.00",
+      "order": 7
+    }
+  },
+  {
+    "model": "protocols.activityruletemplate",
+    "pk": 1,
+    "fields": {
+      "procedure_type": 1,
+      "key": "wash",
+      "icon": "🧼",
+      "name": {
+        "ko": "세안",
+        "ja": "洗顔"
+      },
+      "why": {
+        "ko": "코 부목과 고정 테이프가 물에 젖으면 접착이 풀려 보형물 위치가 흔들릴 수 있어요. 실밥을 뽑는 D+7까지는 물티슈로만 닦습니다.",
+        "ja": "鼻のギプスと固定テープが濡れると接着が緩み、インプラントの位置がずれることがあります。抜糸のD+7まではウェットティッシュのみで拭きます。"
+      },
+      "source_text": {
+        "ko": "수술 후 0~7일 금지 부목 부위 세안 금지 — 물티슈로만 닦을 것 / 수술 후 8일~ 가능 비주 실밥 제거 다음날부터 코 부위 세수 및 기초화장 가능"
+      },
+      "source_ref": "수술 후 주의사항 · 4. 세안·샤워·화장",
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 1,
+    "fields": {
+      "rule": 1,
+      "day_to": 7,
+      "status": "no",
+      "text": {
+        "ko": "부목 젖으면 안 돼요 · 물티슈로만",
+        "ja": "ギプスを濡らさないで · ウェットティッシュのみ"
+      },
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 2,
+    "fields": {
+      "rule": 1,
+      "day_to": 120,
+      "status": "ok",
+      "text": {
+        "ko": "제한 없음",
+        "ja": "制限なし"
+      },
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.activityruletemplate",
+    "pk": 2,
+    "fields": {
+      "procedure_type": 1,
+      "key": "makeup",
+      "icon": "💄",
+      "name": {
+        "ko": "색조화장",
+        "ja": "ポイントメイク"
+      },
+      "why": {
+        "ko": "파운데이션 입자가 아직 닫히지 않은 절개선에 들어가면 색소가 남을 수 있어요. D+14부터 가능하고, 지울 때 문지르지 않는 것이 더 중요합니다.",
+        "ja": "ファンデーションの粒子がまだ閉じていない切開線に入ると色素が残ることがあります。D+14から可能で、落とす時にこすらないことがより重要です。"
+      },
+      "source_text": {
+        "ko": "수술 후 14일~ 가능 색조화장 가능 (클렌징 시 문지르지 않을 것)"
+      },
+      "source_ref": "수술 후 주의사항 · 4. 세안·샤워·화장",
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 3,
+    "fields": {
+      "rule": 2,
+      "day_to": 13,
+      "status": "no",
+      "text": {
+        "ko": "절개부 오염 위험 — 금지",
+        "ja": "切開部の汚染リスク — 禁止"
+      },
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 4,
+    "fields": {
+      "rule": 2,
+      "day_to": 120,
+      "status": "ok",
+      "text": {
+        "ko": "클렌징은 문지르지 않고",
+        "ja": "クレンジングはこすらずに"
+      },
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.activityruletemplate",
+    "pk": 3,
+    "fields": {
+      "procedure_type": 1,
+      "key": "ex",
+      "icon": "🏃",
+      "name": {
+        "ko": "운동",
+        "ja": "運動"
+      },
+      "why": {
+        "ko": "혈압이 오르면 부기와 출혈이 함께 돌아옵니다. D+14까지 금지, D+28까지는 땀이 안 날 정도, 이후 일반 운동이 가능하되 접촉 스포츠는 D+90 이후입니다.",
+        "ja": "血圧が上がると腫れと出血が一緒に戻ってきます。D+14まで禁止、D+28までは汗をかかない程度、その後は通常の運動が可能ですが、接触スポーツはD+90以降です。"
+      },
+      "source_text": {
+        "ko": "수술 후 0~14일 금지 운동 금지 — 혈압 상승 시 부기·출혈 재발 위험 / 15~28일 주의 가벼운 산책, 스트레칭까지만 가능 / 29일~ 가능 일반 운동 가능. 단, 접촉 스포츠는 90일 이후 권장"
+      },
+      "source_ref": "수술 후 주의사항 · 5. 운동 및 일상 활동",
+      "order": 3
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 5,
+    "fields": {
+      "rule": 3,
+      "day_to": 14,
+      "status": "no",
+      "text": {
+        "ko": "혈압 상승 — 금지",
+        "ja": "血圧上昇 — 禁止"
+      },
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 6,
+    "fields": {
+      "rule": 3,
+      "day_to": 28,
+      "status": "care",
+      "text": {
+        "ko": "가벼운 산책 · 스트레칭까지",
+        "ja": "軽い散歩・ストレッチまで"
+      },
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 7,
+    "fields": {
+      "rule": 3,
+      "day_to": 120,
+      "status": "ok",
+      "text": {
+        "ko": "접촉 스포츠는 D+90 이후",
+        "ja": "接触スポーツはD+90以降"
+      },
+      "order": 3
+    }
+  },
+  {
+    "model": "protocols.activityruletemplate",
+    "pk": 4,
+    "fields": {
+      "procedure_type": 1,
+      "key": "drink",
+      "icon": "🍺",
+      "name": {
+        "ko": "음주 · 흡연",
+        "ja": "飲酒・喫煙"
+      },
+      "why": {
+        "ko": "음주는 부기를, 흡연은 그보다 큰 문제를 만듭니다. 니코틴이 모세혈관을 좁히면 이식된 조직으로 피가 가지 않습니다. 이 항목만은 D+28을 꼭 지켜주세요.",
+        "ja": "飲酒は腫れを、喫煙はそれ以上の問題を引き起こします。ニコチンが毛細血管を収縮させると移植組織に血液が届きません。この項目だけはD+28を必ず守ってください。"
+      },
+      "source_text": {
+        "ko": "수술 후 4주간 음주 및 흡연을 금합니다. 특히 흡연은 니코틴에 의한 모세혈관 수축으로 이식 조직의 혈류 공급을 저해하여 상처 치유를 현저히 지연시키므로 반드시 준수합니다."
+      },
+      "source_ref": "수술 후 주의사항 · 6. 음주·흡연",
+      "order": 4
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 8,
+    "fields": {
+      "rule": 4,
+      "day_to": 28,
+      "status": "no",
+      "text": {
+        "ko": "흡연은 조직 괴사 위험 — 절대 금지",
+        "ja": "喫煙は組織壊死のリスク — 絶対禁止"
+      },
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 9,
+    "fields": {
+      "rule": 4,
+      "day_to": 120,
+      "status": "ok",
+      "text": {
+        "ko": "과음 피하기",
+        "ja": "飲みすぎを避ける"
+      },
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.activityruletemplate",
+    "pk": 5,
+    "fields": {
+      "procedure_type": 1,
+      "key": "glasses",
+      "icon": "👓",
+      "name": {
+        "ko": "안경 착용",
+        "ja": "眼鏡の着用"
+      },
+      "why": {
+        "ko": "안경 코받침의 무게가 정확히 보형물 위에 얹힙니다. D+28까지는 완전 금지, D+60까지는 짧게만 쓰고, 그 이후 일반 착용을 권장합니다.",
+        "ja": "眼鏡の鼻パッドの重みがちょうどインプラントの上に乗ります。D+28までは完全禁止、D+60までは短時間のみ、その後は通常の着用を推奨します。"
+      },
+      "source_text": {
+        "ko": "수술 후 0~28일 금지 안경·선글라스 착용 금지 (콧대 압박) / 29~60일 주의 짧은 시간만 착용, 코받침 자국 발생 시 즉시 제거 / 61일~ 가능 일반 착용 권장"
+      },
+      "source_ref": "수술 후 주의사항 · 7. 안경 착용 / 코 마사지·코팩",
+      "order": 5
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 10,
+    "fields": {
+      "rule": 5,
+      "day_to": 28,
+      "status": "no",
+      "text": {
+        "ko": "콧대 압박 — 금지",
+        "ja": "鼻筋への圧迫 — 禁止"
+      },
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 11,
+    "fields": {
+      "rule": 5,
+      "day_to": 60,
+      "status": "care",
+      "text": {
+        "ko": "짧게만 · 코받침 자국 남으면 즉시 벗기",
+        "ja": "短時間のみ · 跡が残ったらすぐ外す"
+      },
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 12,
+    "fields": {
+      "rule": 5,
+      "day_to": 120,
+      "status": "ok",
+      "text": {
+        "ko": "D+61 이후 일반 착용 권장",
+        "ja": "D+61以降は通常の着用を推奨"
+      },
+      "order": 3
+    }
+  },
+  {
+    "model": "protocols.activityruletemplate",
+    "pk": 6,
+    "fields": {
+      "procedure_type": 1,
+      "key": "mass",
+      "icon": "🤲",
+      "name": {
+        "ko": "코 마사지 · 코팩",
+        "ja": "鼻のマッサージ・鼻パック"
+      },
+      "why": {
+        "ko": "보형물 주변 조직이 안정되기 전에 누르면 위치가 밀립니다. 코팩·각질제거도 같은 이유로 D+57 이후입니다.",
+        "ja": "インプラント周囲の組織が安定する前に押すと位置がずれます。鼻パックや角質除去も同じ理由でD+57以降です。"
+      },
+      "source_text": {
+        "ko": "수술 후 0~56일 금지 코 마사지 및 코팩 금지 / 57일~ 가능 세게 누르지 않는 범위에서 가능"
+      },
+      "source_ref": "수술 후 주의사항 · 7. 안경 착용 / 코 마사지·코팩",
+      "order": 6
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 13,
+    "fields": {
+      "rule": 6,
+      "day_to": 56,
+      "status": "no",
+      "text": {
+        "ko": "금지",
+        "ja": "禁止"
+      },
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 14,
+    "fields": {
+      "rule": 6,
+      "day_to": 120,
+      "status": "ok",
+      "text": {
+        "ko": "세게 누르지 않기",
+        "ja": "強く押さないこと"
+      },
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.activityruletemplate",
+    "pk": 7,
+    "fields": {
+      "procedure_type": 1,
+      "key": "blow",
+      "icon": "🤧",
+      "name": {
+        "ko": "코 풀기",
+        "ja": "鼻をかむこと"
+      },
+      "why": {
+        "ko": "코를 푸는 순간의 압력이 봉합 부위를 직접 밀어냅니다. 답답하면 풀지 말고 생리식염수로 흘려보내세요.",
+        "ja": "鼻をかむ瞬間の圧力が縫合部を直接押し出します。詰まったらかまずに生理食塩水で流してください。"
+      },
+      "source_text": {
+        "ko": "수술 후 4주간 코를 풀지 않습니다. 재채기가 나올 경우 입을 벌린 상태로 하며, 콧속이 답답한 경우 생리식염수로 세척하여 흘려보냅니다."
+      },
+      "source_ref": "수술 후 주의사항 · 8. 코 풀기 및 재채기",
+      "order": 7
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 15,
+    "fields": {
+      "rule": 7,
+      "day_to": 28,
+      "status": "no",
+      "text": {
+        "ko": "출혈 · 변형 위험 — 금지",
+        "ja": "出血・変形のリスク — 禁止"
+      },
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 16,
+    "fields": {
+      "rule": 7,
+      "day_to": 120,
+      "status": "ok",
+      "text": {
+        "ko": "제한 없음",
+        "ja": "制限なし"
+      },
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.activityruletemplate",
+    "pk": 8,
+    "fields": {
+      "procedure_type": 1,
+      "key": "flight",
+      "icon": "✈️",
+      "name": {
+        "ko": "장거리 비행",
+        "ja": "長距離フライト"
+      },
+      "why": {
+        "ko": "기내 기압이 낮아지면 코 안 혈관이 다시 열릴 수 있어요. D+10까지는 피하고, 귀국일({RET})이 포함되는 구간에는 수분 섭취와 두 시간마다 보행으로 관리합니다.",
+        "ja": "機内の気圧が下がると鼻の中の血管が再び開くことがあります。D+10までは避け、帰国日（{RET}）が含まれる区間では水分補給と2時間ごとの歩行で管理します。"
+      },
+      "source_text": {
+        "ko": "수술 후 0~10일 금지 기내 기압 변화로 인한 출혈 위험 — 탑승 금지 / 11~21일 주의 탑승 가능하나 기내 수분 섭취 및 2시간 간격 기내 보행 필수 / 22일~ 가능 제한 없음"
+      },
+      "source_ref": "수술 후 주의사항 · 9. 항공기 탑승 (귀국 항공편 포함)",
+      "order": 8
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 17,
+    "fields": {
+      "rule": 8,
+      "day_to": 10,
+      "status": "no",
+      "text": {
+        "ko": "기압 변화로 출혈 위험 — 금지",
+        "ja": "気圧変化による出血リスク — 禁止"
+      },
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 18,
+    "fields": {
+      "rule": 8,
+      "day_to": 21,
+      "status": "care",
+      "text": {
+        "ko": "귀국일({RET})이 이 구간 · 기내 수분과 보행 필수",
+        "ja": "帰国日（{RET}）がこの区間 · 水分補給と歩行が必須"
+      },
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 19,
+    "fields": {
+      "rule": 8,
+      "day_to": 120,
+      "status": "ok",
+      "text": {
+        "ko": "제한 없음",
+        "ja": "制限なし"
+      },
+      "order": 3
+    }
+  },
+  {
+    "model": "protocols.activityruletemplate",
+    "pk": 9,
+    "fields": {
+      "procedure_type": 1,
+      "key": "sauna",
+      "icon": "🔥",
+      "name": {
+        "ko": "사우나 · 온천",
+        "ja": "サウナ・温泉"
+      },
+      "why": {
+        "ko": "고온에 오래 있으면 혈관이 확장되어 부기가 다시 올라옵니다. 일본 귀국 후 온천 계획이 있으면 D+91 이후로 잡아주세요.",
+        "ja": "高温に長くいると血管が拡張して腫れが戻ります。帰国後に温泉のご予定があればD+91以降にしてください。"
+      },
+      "source_text": {
+        "ko": "수술 후 0~28일 금지 고온 노출 시 혈관 확장으로 인한 부기 재발 / 29~90일 주의 짧은 시간, 미지근한 온도로만 이용 / 91일~ 가능 제한 없음"
+      },
+      "source_ref": "수술 후 주의사항 · 10. 사우나·온천",
+      "order": 9
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 20,
+    "fields": {
+      "rule": 9,
+      "day_to": 28,
+      "status": "no",
+      "text": {
+        "ko": "금지",
+        "ja": "禁止"
+      },
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 21,
+    "fields": {
+      "rule": 9,
+      "day_to": 90,
+      "status": "care",
+      "text": {
+        "ko": "짧게, 미지근하게",
+        "ja": "短時間、ぬるめに"
+      },
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 22,
+    "fields": {
+      "rule": 9,
+      "day_to": 120,
+      "status": "ok",
+      "text": {
+        "ko": "제한 없음",
+        "ja": "制限なし"
+      },
+      "order": 3
+    }
+  },
+  {
+    "model": "protocols.activityruletemplate",
+    "pk": 10,
+    "fields": {
+      "procedure_type": 1,
+      "key": "side",
+      "icon": "😴",
+      "name": {
+        "ko": "옆으로 · 엎드려 눕기",
+        "ja": "横向き・うつ伏せ寝"
+      },
+      "why": {
+        "ko": "자는 동안 한쪽으로 눌리는 시간이 가장 길어요. 이 시기의 변형은 되돌리기 어렵습니다.",
+        "ja": "寝ている間、片側に押される時間が最も長くなります。この時期の変形は元に戻しにくいです。"
+      },
+      "source_text": {
+        "ko": "수술 후 4주간은 머리를 심장보다 높게(상체 45도) 유지하고 취침하며, 옆으로 눕거나 엎드려 자지 않습니다."
+      },
+      "source_ref": "수술 후 주의사항 · 3. 수면 자세",
+      "order": 10
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 23,
+    "fields": {
+      "rule": 10,
+      "day_to": 28,
+      "status": "no",
+      "text": {
+        "ko": "보형물 위치 변형 위험 — 금지",
+        "ja": "インプラントの位置ずれリスク — 禁止"
+      },
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.activityrulephase",
+    "pk": 24,
+    "fields": {
+      "rule": 10,
+      "day_to": 120,
+      "status": "ok",
+      "text": {
+        "ko": "제한 없음",
+        "ja": "制限なし"
+      },
+      "order": 2
+    }
+  },
+  {
+    "model": "protocols.variablequestion",
+    "pk": 1,
+    "fields": {
+      "procedure_type": 1,
+      "key": "pack",
+      "question": {
+        "ko": "코 안에 흰 솜(패킹)이 들어 있나요?",
+        "ja": "鼻の中に白い綿（パッキング）が入っていますか？"
+      },
+      "hint": {
+        "ko": "있으면 제거 일정이 루틴에 추가됩니다. 병원에서 \"2~3일 후 뺀다\"고 안내받았다면 있는 것입니다.",
+        "ja": "ある場合は除去の予定がルーティンに追加されます。病院で「2〜3日後に抜く」と案内されていれば入っています。"
+      },
+      "answer_type": "bool",
+      "effects": {
+        "on_true": [
+          {
+            "type": "add_task",
+            "key": "packing_removal",
+            "day_from": 2,
+            "day_to": 3,
+            "times_per_day": 1
+          }
+        ],
+        "on_false": []
+      },
+      "order": 1
+    }
+  },
+  {
+    "model": "protocols.variablequestion",
+    "pk": 2,
+    "fields": {
+      "procedure_type": 1,
+      "key": "alar",
+      "question": {
+        "ko": "콧볼 축소를 함께 하셨나요?",
+        "ja": "小鼻縮小も一緒に受けましたか？"
+      },
+      "hint": {
+        "ko": "했다면 콧볼 실밥 제거(D+10)가 별도로 잡힙니다.",
+        "ja": "受けた場合は小鼻の抜糸（D+10）が別途予定されます。"
+      },
+      "answer_type": "bool",
+      "effects": {
+        "on_true": [
+          {
+            "type": "add_appointment",
+            "day": 10,
+            "kind": "visit",
+            "title": {
+              "ko": "콧볼 실밥 제거",
+              "ja": "小鼻の抜糸"
+            }
+          }
+        ],
+        "on_false": []
+      },
+      "order": 2
+    }
+  },
+  {
+    "model": "checkins.symptomterm",
+    "pk": 1,
+    "fields": {
+      "key": "swelling",
+      "name": {
+        "ko": "부기",
+        "ja": "腫れ"
+      },
+      "medical_term": {
+        "ko": "부기 (edema)",
+        "ja": "浮腫 (edema)"
+      },
+      "snomed_code": "65124004",
+      "procedure_type": 1,
+      "order": 1
+    }
+  },
+  {
+    "model": "checkins.symptomterm",
+    "pk": 2,
+    "fields": {
+      "key": "pain",
+      "name": {
+        "ko": "통증",
+        "ja": "痛み"
+      },
+      "medical_term": {
+        "ko": "통증 (pain)",
+        "ja": "疼痛 (pain)"
+      },
+      "snomed_code": "22253000",
+      "procedure_type": 1,
+      "order": 2
+    }
+  },
+  {
+    "model": "checkins.symptomterm",
+    "pk": 3,
+    "fields": {
+      "key": "bruise",
+      "name": {
+        "ko": "멍",
+        "ja": "青あざ"
+      },
+      "medical_term": {
+        "ko": "반상출혈 (ecchymosis)",
+        "ja": "斑状出血 (ecchymosis)"
+      },
+      "snomed_code": "302227002",
+      "procedure_type": 1,
+      "order": 3
+    }
+  }
+]

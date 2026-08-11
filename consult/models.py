@@ -45,6 +45,12 @@ class ConsultMessage(models.Model):
         RecoveryReport, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="consult_messages",
     )
+
+    attached_checkin = models.ForeignKey(
+        "checkins.Checkin", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="consult_messages",
+    )
+    
     attached_label = models.CharField(max_length=120, blank=True)  # "회복 경과 기록 D+0~D+2" 스냅샷
 
     created_at = models.DateTimeField(auto_now_add=True)           # D+2 표시의 근거
