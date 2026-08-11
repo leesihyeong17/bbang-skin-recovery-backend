@@ -119,6 +119,42 @@ DATABASES = {
 	}
 }
 
+### AWS ###
+# IAM 사용자 관련 정보 — secrets.json에 넣어주세요
+AWS_ACCESS_KEY_ID = get_secret("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = get_secret("AWS_SECRET_ACCESS_KEY")
+
+# ============================================================
+# 스토리지 — 기본은 로컬, 환자 사진만 S3
+# ============================================================
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+STORAGES = {
+    # 기본값. 안내문 PDF · 수술확인서 · 리포트 PDF 등이 여기로 간다.
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+    # 환자가 올리는 사진 전용. 모델에서 명시적으로 지정한 필드만 여기로 간다.
+    "s3": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": "likelion-aftercare-s3",
+            "region_name": "ap-northeast-2",
+            "signature_version": "s3v4",     # 서울 리전은 v4 서명
+            "default_acl": None,             # 요즘 버킷은 ACL 비활성이 기본
+            "querystring_auth": True,        # 만료되는 서명 URL로만 접근
+            "querystring_expire": 60,        # 60초
+            "file_overwrite": False,
+            # 환자 얼굴 사진이므로 브라우저에 캐시하지 않는다
+            "object_parameters": {"CacheControl": "private, max-age=0, no-store"},
+        },
+    },
+}
+
 
 
 # Password validation

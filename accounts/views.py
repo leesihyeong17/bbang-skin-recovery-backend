@@ -1,3 +1,113 @@
-from django.shortcuts import render
+"""
+인증 · 계정 — 명세 9.1
 
-# Create your views here.
+회원가입이 없습니다. 병원이 발급한 patient_code + 생년월일 8자리로 들어옵니다.
+비밀번호는 PatientManager.create_user()가 dob를 YYYYMMDD로 해시해 둔 값이라
+authenticate()에 그대로 넘기면 됩니다.
+"""
+from django.contrib.auth import authenticate
+from django.utils import timezone
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from config.utils import api_error, t
+
+from .models import Patient
+from .serializers import PatientSerializer
+
+
+def _stage_of(surgery, day: int) -> str:
+    """D+N → "초기 안정" 같은 단계 이름.
+
+    TODO: A가 care/services.py에 stage_of()를 만들면 그걸로 교체하고 여기는 지울 것.
+          지금은 /me 하나만 쓰므로 임시로 둔다.
+    """
+    for s in surgery.procedure_type.stage_map or []:
+        if day <= s["to"]:
+            return t(s["name"], surgery.patient.lang)
+    return ""
+
+
+def _latest_surgery(patient, with_related=False):
+    qs = patient.surgeries.all()
+    if with_related:
+        qs = qs.select_related("clinic", "surgeon", "procedure_type")
+    return qs.order_by("-surgery_date").first()
+
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        code = (request.data.get("patient_code") or "").strip()
+        dob = (request.data.get("dob") or "").strip()      # 화면 입력 그대로 "19940512"
+        lang = request.data.get("lang")
+
+        if not code or not dob:
+            return api_error("VALIDATION_ERROR", "환자 ID와 생년월일을 입력해 주세요")
+
+        patient = authenticate(request, patient_code=code, password=dob)
+        if patient is None:
+            return api_error(
+                "INVALID_CREDENTIALS", "ID 또는 생년월일이 일치하지 않습니다", 401
+            )
+
+        # 언어는 최초 로그인에만 반영. 이후 값은 무시한다 (명세서 1.2 "언어는 1회 선택")
+        if lang and not patient.lang_locked and lang in dict(Patient.Lang.choices):
+            patient.lang = lang
+            patient.lang_locked_at = timezone.now()
+            patient.save(update_fields=["lang", "lang_locked_at"])
+
+        surgery = _latest_surgery(patient)
+        refresh = RefreshToken.for_user(patient)
+
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "patient": PatientSerializer(patient).data,
+                "surgery_id": surgery.id if surgery else None,
+                # 프론트가 온보딩으로 보낼지 홈으로 보낼지 이걸로 분기한다
+                "care_status": surgery.care_status if surgery else None,
+            }
+        )
+
+
+class MeView(APIView):
+    def get(self, request):
+        patient = request.user
+        lang = patient.lang
+        data = {"patient": PatientSerializer(patient).data}
+
+        surgery = _latest_surgery(patient, with_related=True)
+        if surgery is None:
+            return Response(data)      # superuser 등 시술이 없는 계정
+
+        today = timezone.localdate()
+        day = surgery.day_of(today)
+
+        data["surgery"] = {
+            "id": surgery.id,
+            "day": day,                      # D+N은 서버가 계산해서 내려준다 (D4)
+            "date": today,
+            "surgery_date": surgery.surgery_date,
+            "procedure": t(surgery.procedure_type.name, lang),
+            "detail": t(surgery.detail, lang),
+            "surgeon": t(surgery.surgeon.name, lang),
+            "program_days": surgery.program_days,
+            "return_date": surgery.return_date,
+            "return_day": surgery.return_day,   # 컬럼이 아니라 @property
+            "stage": _stage_of(surgery, day),
+            "care_status": surgery.care_status,
+            # 환자가 고칠 수 있는 필드. 프론트가 입력창을 열지 이걸로 판단한다
+            "editable_fields": ["return_date"],
+        }
+        data["clinic"] = {
+            "name": t(surgery.clinic.name, lang),
+            "tel": surgery.clinic.tel,
+            "reply_hours": surgery.clinic.reply_hours,
+        }
+        return Response(data)
