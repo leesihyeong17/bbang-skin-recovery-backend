@@ -27,7 +27,7 @@ class Checkin(models.Model):
 
     surgery = models.ForeignKey(Surgery, on_delete=models.CASCADE, related_name="checkins")
     date = models.DateField()                                     # 사실. day_offset 컬럼 없음(D4)
-    note = models.TextField(blank=True)
+    note = models.TextField(blank=True)                           # 프로토타입에는 있었지만 없어진 기능
     note_lang = models.CharField(max_length=2, blank=True)        # 병원 전달 시 번역 방향 결정
     completed_at = models.DateTimeField(null=True, blank=True)    # null = 진행 중
 

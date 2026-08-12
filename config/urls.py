@@ -9,7 +9,7 @@ urlpatterns = [
     path("api/v1/", include("accounts.urls")),
     # 앱이 준비되는 대로 아래를 열어주세요
     # path("api/v1/", include("care.urls")),
-    # path("api/v1/", include("checkins.urls")),
+    path("api/v1/", include("checkins.urls")),
     # path("api/v1/", include("reports.urls")),
     # path("api/v1/", include("consult.urls")),
 ]
