@@ -32,13 +32,6 @@ def _stage_of(surgery, day: int) -> str:
     return ""
 
 
-def _latest_surgery(patient, with_related=False):
-    qs = patient.surgeries.all()
-    if with_related:
-        qs = qs.select_related("clinic", "surgeon", "procedure_type")
-    return qs.order_by("-surgery_date").first()
-
-
 class LoginView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -64,7 +57,7 @@ class LoginView(APIView):
             patient.lang_locked_at = timezone.now()
             patient.save(update_fields=["lang", "lang_locked_at"])
 
-        surgery = _latest_surgery(patient)
+        surgery = patient.surgery
         refresh = RefreshToken.for_user(patient)
 
         return Response(
@@ -102,7 +95,7 @@ class MeView(APIView):
         lang = patient.lang
         data = {"patient": PatientSerializer(patient).data}
 
-        surgery = _latest_surgery(patient, with_related=True)
+        surgery = patient.surgery
         if surgery is None:
             return Response(data)      # superuser 등 시술이 없는 계정
 

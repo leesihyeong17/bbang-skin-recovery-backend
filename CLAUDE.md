@@ -130,6 +130,15 @@ config/     settings · urls · utils(t, api_error)
 
 체크인·리포트·상담·처방이 전부 여기 FK로 붙습니다. 별도 `CarePlan` 테이블은 없습니다.
 
+**계정 1개 = 환자 1명 × 시술 1건입니다.** `Surgery`에 `UniqueConstraint(patient)`가 걸려 있어 계정당 0개 또는 1개입니다. 재수술은 병원이 새 `patient_code`를 발급해 별도 계정으로 받습니다.
+
+```python
+request.user.surgery      # ○ cached_property. 없으면 None (superuser)
+patient.surgeries.first() # △ 동작하지만 select_related가 빠진다
+```
+
+FK를 유지한 건 나중에 통합 이력을 넣을 때 제약만 지우면 되게 하려는 것입니다. **`None` 확인은 반드시 하세요** — superuser는 시술이 없습니다.
+
 환자가 쓸 수 있는 필드는 `return_date`와 `onboarded_at` **둘뿐**입니다. 나머지는 병원 등록값이라 환자 토큰으로 수정할 수 없어야 합니다.
 
 ### 테이블 없이 계산하는 것들

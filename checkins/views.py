@@ -10,15 +10,12 @@ import io
 from PIL import Image, ImageOps, UnidentifiedImageError
 from django.core.files.base import ContentFile
 
-from accounts.views import _latest_surgery
-# Create your views here.
-
 from .models import Checkin, CheckinPhoto
 from .serializers import CheckinSerializer
 
 class CheckinList(APIView):
     def post(self, request, format=None):
-        surgery = _latest_surgery(request.user)
+        surgery = request.user.surgery
         if not surgery:
             return Response({"error": "VALIDATION_ERROR", "message": "등록된 수술이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -60,7 +57,7 @@ class CheckinList(APIView):
 
 class CheckinPhotoUpload(APIView):
     def post(self, request, checkin_id, format=None):
-        surgery = _latest_surgery(request.user)
+        surgery = request.user.surgery
         if surgery is None:
             return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
 

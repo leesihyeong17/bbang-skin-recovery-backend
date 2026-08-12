@@ -12,6 +12,7 @@ apps/accounts/models.py — 도메인 A (조직 · 환자)
 """
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+from django.utils.functional import cached_property
 
 
 class Clinic(models.Model):
@@ -100,3 +101,14 @@ class Patient(AbstractBaseUser, PermissionsMixin):
     @property
     def lang_locked(self) -> bool:
         return self.lang_locked_at is not None
+
+    @cached_property
+    def surgery(self):
+        """이 계정의 시술. 계정당 1건이므로 고르는 로직이 없다.
+
+        Surgery에 UniqueConstraint(patient)가 걸려 있어 항상 0개 또는 1개다.
+        superuser처럼 시술이 없는 계정은 None이므로 호출부에서 반드시 확인할 것.
+        """
+        return self.surgeries.select_related(
+            "clinic", "surgeon", "procedure_type"
+        ).first()

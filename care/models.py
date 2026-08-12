@@ -60,6 +60,12 @@ class Surgery(models.Model):
 
     class Meta:
         db_table = "surgery"
+        constraints = [
+            # 계정 1개 = 환자 × 시술 1건.
+            # 재수술은 병원이 새 patient_code를 발급해 새 계정으로 받는다.
+            # FK를 유지하는 건 나중에 통합 이력을 넣을 때 제약만 지우면 되게 하려는 것.
+            models.UniqueConstraint(fields=["patient"], name="one_surgery_per_patient"),
+        ]
 
     def __str__(self):
         return f"{self.patient.patient_code} / {self.procedure_type.code}"
