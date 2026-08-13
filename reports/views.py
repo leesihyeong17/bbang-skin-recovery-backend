@@ -105,3 +105,31 @@ class ReportListView(APIView):
             meta=_meta(surgery, day_from, day_to, lang),
         )
         return Response(_payload(report), status=status.HTTP_201_CREATED)
+
+    def get(self, request):
+        surgery = request.user.surgery
+        if surgery is None:
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+        reports = surgery.reports.all()          # Meta.ordering = ["-generated_at"]
+
+        kind = request.query_params.get("kind")
+        if kind:
+            if kind not in dict(RecoveryReport.Kind.choices):
+                return api_error(
+                    "VALIDATION_ERROR", "kind는 submission 또는 repatriation입니다"
+                )
+            reports = reports.filter(kind=kind)
+
+        return Response({"items": [_summary(r) for r in reports]})
+
+def _summary(report):
+    """목록용. body는 안 담는다 — 상세에서만 받는다."""
+    return {
+        "id": report.id,
+        "kind": report.kind,
+        "lang": report.lang,
+        "day_from": report.day_from,
+        "day_to": report.day_to,
+        "generated_at": report.generated_at,
+    }
