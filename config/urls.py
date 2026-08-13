@@ -10,7 +10,7 @@ urlpatterns = [
     path("api/v1/", include("care.urls")),
     path("api/v1/", include("checkins.urls")),
     # path("api/v1/", include("reports.urls")),
-    # path("api/v1/", include("consult.urls")),
+    path("api/v1/", include("consult.urls")),
 ]
 
 # 로컬 저장 파일(안내문 PDF · 수술확인서) 개발용 서빙.
