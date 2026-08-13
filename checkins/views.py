@@ -12,6 +12,18 @@ from .models import Checkin, CheckinPhoto, CheckinSymptom
 from django.db import transaction
 from .serializers import CheckinSerializer, CheckinSymptomSerializer
 
+def _own_checkin(request, checkin_id):
+    """요청자가 소유한 체크인인지 확인. 아니면 404를 던진다."""
+    surgery = request.user.surgery
+    if surgery is None:
+        return None, api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+    checkin = Checkin.objects.filter(id=checkin_id, surgery=surgery).first()
+    if checkin is None:
+        return None, api_error("NOT_FOUND", "체크인을 찾을 수 없습니다", 404)
+
+    return checkin, None
+
 class CheckinList(APIView):
     def post(self, request, format=None):
         surgery = request.user.surgery
@@ -72,15 +84,10 @@ def _image_ext(uploaded):
 
 class CheckinPhotoUpload(APIView):
     def post(self, request, checkin_id, format=None):
-        surgery = request.user.surgery
-        if surgery is None:
-            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
-
-        # 남의 체크인 id를 넣어도 여기서 걸린다. 403이 아니라 404 —
-        # "그 id는 존재하지만 네 것이 아니다"를 알려주지 않는다.
-        checkin = Checkin.objects.filter(id=checkin_id, surgery=surgery).first()
-        if checkin is None:
-            return api_error("NOT_FOUND", "체크인을 찾을 수 없습니다", 404)
+        checkin, err = _own_checkin(request, checkin_id)
+        if err:
+            return err
+        surgery = checkin.surgery 
 
         angle = (request.data.get("angle") or "").strip()
         if angle not in dict(CheckinPhoto.Angle.choices):
@@ -119,13 +126,10 @@ class CheckinPhotoUpload(APIView):
 
 class CheckinSymptomUpdate(APIView):
     def put(self, request, checkin_id, format=None):
-        surgery = request.user.surgery
-        if surgery is None:
-            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
-
-        checkin = Checkin.objects.filter(id=checkin_id, surgery=surgery).first()
-        if checkin is None:
-            return api_error("NOT_FOUND", "체크인을 찾을 수 없습니다", 404)
+        checkin, err = _own_checkin(request, checkin_id)
+        if err:
+            return err
+        surgery = checkin.surgery 
 
         terms = {t.key: t for t in surgery.procedure_type.symptom_terms.all()}
         serializer = CheckinSymptomSerializer(data=request.data, context={"terms": terms})
