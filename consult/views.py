@@ -8,6 +8,8 @@ from rest_framework.response import Response
 from django.utils import timezone
 
 from care.models import Appointment
+from care.services import care_items
+from .models import ConsultMessage
 
 
 # Create your views here.
@@ -58,6 +60,31 @@ def _appointment_status(appointment, now):
         if appointment.scheduled_at <= now
         else Appointment.Status.SCHEDULED
     )
+
+#GET Notification
+NOTI_BODY_LIMIT = 80
+
+REPLY_TITLE = {
+    "ko": "{name}님이 답변했어요",
+    "ja": "{name}さんが返信しました",
+}
+
+ROUTINE_TITLE = {
+    "ko": "{name} · {left}회 남았어요",
+    "ja": "{name} · あと{left}回",
+}
+
+ROUTINE_BODY = {
+    "ko": "D+{day} · 하루 {per}회",
+    "ja": "D+{day} · 1日{per}回",
+}
+
+
+def _message_body(message, lang):
+    """환자 언어에 맞는 본문. 번역이 그 언어면 번역문, 아니면 원문."""
+    if message.body_translated and message.lang_translated == lang:
+        return message.body_translated
+    return message.body_original
 
 class ClinicView(APIView):
     def get(self, request):
@@ -114,5 +141,65 @@ class AppointmentListView(APIView):
                     "status": _appointment_status(a, now),
                 }
             )
+
+        return Response({"items": items})
+
+class NotificationListView(APIView):
+    """미완료 루틴 + 미읽음 병원 답변
+    """
+
+    def get(self, request):
+        surgery = request.user.surgery
+        if surgery is None:
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+        lang = request.user.lang
+        items = []
+
+        # ── 병원 답변 ────────────────────────────────────────
+        last_read = surgery.consult_last_read_at
+        replies = (
+            surgery.consult_messages.filter(
+                sender_type=ConsultMessage.SenderType.STAFF
+            )
+            .select_related("sender_staff")
+            .order_by("-created_at")[:20]
+        )
+        for msg in replies:
+            # consult_last_read_at이 null이면 전부 미읽음(계약 9.8)
+            unread = last_read is None or msg.created_at > last_read
+            staff = msg.sender_staff
+            name = t(staff.name, lang) if staff else t(surgery.clinic.name, lang)
+            body = _message_body(msg, lang)
+            items.append(
+                {
+                    "type": "clinic_reply",
+                    "title": t(REPLY_TITLE, lang).format(name=name),
+                    "body": body[:NOTI_BODY_LIMIT],
+                    "created_at": msg.created_at,
+                    "unread": unread,
+                }
+            )
+
+        # ── 오늘 미완료 루틴 ─────────────────────────────────
+        today = timezone.localdate()
+        day = surgery.day_of(today)
+        if 0 <= day <= surgery.program_days:
+            for task in care_items(surgery, day, lang)["tasks"]:
+                left = task["times_per_day"] - task["done_count"]
+                if left <= 0:
+                    continue
+                items.append(
+                    {
+                        "type": "routine",
+                        "title": t(ROUTINE_TITLE, lang).format(
+                            name=task["name"], left=left
+                        ),
+                        "body": t(ROUTINE_BODY, lang).format(
+                            day=day, per=task["times_per_day"]
+                        ),
+                        "unread": False,
+                    }
+                )
 
         return Response({"items": items})
