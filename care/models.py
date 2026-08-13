@@ -15,10 +15,15 @@ from datetime import date, timedelta
 
 from django.conf import settings
 from django.db import models
+from django.core.files.storage import storages
 
 from accounts.models import Clinic, ClinicStaff
 from protocols.models import ProcedureType, VariableQuestion
 
+
+def photo_storage():
+    # 인스턴스가 아니라 콜러블을 넘겨야 마이그레이션에 스토리지 객체가 안 박힌다
+    return storages["s3"]  # settings.py STORAGES["s3"]
 
 class Surgery(models.Model):
     """환자 데이터 전체의 뿌리. 체크인·리포트·상담·처방이 전부 여기에 붙는다."""
@@ -57,6 +62,8 @@ class Surgery(models.Model):
     # --- 환자가 쓸 수 있는 값은 이 둘뿐 ---
     return_date = models.DateField(null=True, blank=True)         # 항공권 날짜
     onboarded_at = models.DateTimeField(null=True, blank=True)
+
+    consult_last_read_at = models.DateTimeField(null=True, blank=True)  # 환자가 마지막으로 읽은 상담 메시지
 
     class Meta:
         db_table = "surgery"
@@ -133,7 +140,7 @@ class Prescription(models.Model):
     surgery = models.OneToOneField(
         Surgery, on_delete=models.CASCADE, related_name="prescription"
     )
-    source_image = models.ImageField(upload_to="prescriptions/")
+    source_image = models.ImageField(upload_to="prescriptions/", storage=photo_storage, blank=True)  # 환자가 업로드한 원본. OCR 실패 시 재업로드용
     ocr_status = models.CharField(
         max_length=8, choices=OcrStatus.choices, default=OcrStatus.PENDING
     )

@@ -19,17 +19,7 @@ from config.utils import api_error, t
 from .models import Patient
 from .serializers import PatientSerializer
 
-
-def _stage_of(surgery, day: int) -> str:
-    """D+N → "초기 안정" 같은 단계 이름.
-
-    TODO: A가 care/services.py에 stage_of()를 만들면 그걸로 교체하고 여기는 지울 것.
-          지금은 /me 하나만 쓰므로 임시로 둔다.
-    """
-    for s in surgery.procedure_type.stage_map or []:
-        if day <= s["to"]:
-            return t(s["name"], surgery.patient.lang)
-    return ""
+from care.services import stage_of
 
 
 class LoginView(APIView):
@@ -113,7 +103,7 @@ class MeView(APIView):
             "program_days": surgery.program_days,
             "return_date": surgery.return_date,
             "return_day": surgery.return_day,   # 컬럼이 아니라 @property
-            "stage": _stage_of(surgery, day),
+            "stage": stage_of(surgery, day),
             "care_status": surgery.care_status,
             # 환자가 고칠 수 있는 필드. 프론트가 입력창을 열지 이걸로 판단한다
             "editable_fields": ["return_date"],

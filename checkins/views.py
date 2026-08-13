@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
+from care.services import completion
 
 from PIL import Image, UnidentifiedImageError
 from pillow_heif import register_heif_opener
@@ -23,14 +24,6 @@ def _own_checkin(request, checkin_id):
         return None, api_error("NOT_FOUND", "체크인을 찾을 수 없습니다", 404)
 
     return checkin, None
-
-def _completion_rate(surgery, day):
-    """완주율.
-
-    TODO: A가 care/services.py에 completion()을 만들면 그걸로 교체할 것.
-          accounts/views.py의 _stage_of()와 같은 성격의 임시 코드.
-    """
-    return None
 
 
 class CheckinList(APIView):
@@ -199,7 +192,7 @@ class CheckinComplete(APIView):
             {
                 "completed_at": checkin.completed_at,
                 "day": day,
-                "completion_rate": _completion_rate(surgery, day),
+                "completion_rate": completion(surgery, day),
             },
             status=status.HTTP_200_OK,
         )
