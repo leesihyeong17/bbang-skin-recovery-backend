@@ -3,6 +3,7 @@
 Clinic · Appointment 조회와 상담. 모델은 accounts · care에 있고 여기는 뷰만 둔다.
 """
 from django.shortcuts import render
+from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
@@ -10,6 +11,9 @@ from django.utils import timezone
 from care.models import Appointment
 from care.services import care_items
 from .models import ConsultMessage
+from checkins.models import Checkin
+from reports.models import RecoveryReport
+from .translation import translate
 
 
 # Create your views here.
@@ -203,3 +207,151 @@ class NotificationListView(APIView):
                 )
 
         return Response({"items": items})
+
+CLINIC_LANG = "ko"          # 병원이 읽고 쓰는 언어
+
+LANG_LABEL = {"ko": "한국어", "ja": "日本語", "en": "English"}
+
+TAG = {
+    "mine_original":   {"ko": "내 문장 · {lang} 원문", "ja": "自分の文 · {lang} 原文"},
+    "mine_translated": {"ko": "내 문장 · 번역해서 전달", "ja": "自分の文 · 翻訳して送信"},
+    "clinic_original": {"ko": "병원 답변 · 원문", "ja": "病院の返信 · 原文"},
+    "clinic_translated": {
+        "ko": "실시간 번역 · {src} → {dst}",
+        "ja": "リアルタイム翻訳 · {src} → {dst}",
+    },
+}
+
+
+def _tag(message, lang):
+    """발신자 × 보는 언어 4조합. 프론트에 두면 틀리므로 서버가 만든다(계약 828행)."""
+    mine = message.sender_type == ConsultMessage.SenderType.PATIENT
+    same = message.lang_original == lang
+
+    if mine and same:
+        return t(TAG["mine_original"], lang).format(lang=LANG_LABEL.get(lang, lang))
+    if mine:
+        return t(TAG["mine_translated"], lang)
+    if same:
+        return t(TAG["clinic_original"], lang)
+    return t(TAG["clinic_translated"], lang).format(
+        src=LANG_LABEL.get(message.lang_original, message.lang_original),
+        dst=LANG_LABEL.get(lang, lang),
+    )
+
+
+def _attachments(message, surgery):
+    """첨부 2종을 목록으로. 제네릭 관계 대신 FK 2개를 쓴 결과다."""
+    out = []
+    if message.attached_report_id:
+        out.append({
+            "kind": "report",
+            "id": message.attached_report_id,
+            "label": message.attached_label,
+        })
+    if message.attached_checkin_id:
+        checkin = message.attached_checkin
+        out.append({
+            "kind": "checkin",
+            "id": checkin.id,
+            "day": surgery.day_of(checkin.date),
+            "date": checkin.date,
+            "label": message.attached_label,
+        })
+    return out
+
+
+def _attach_label(report, checkin, surgery, lang):
+    """"회복 경과 기록 D+0~D+2" 같은 스냅샷 문구. 나중에 리포트가 바뀌어도 남는다."""
+    if report:
+        return t(
+            {"ko": "회복 경과 기록 D+{a}~D+{b}", "ja": "回復経過の記録 D+{a}~D+{b}"}, lang
+        ).format(a=report.day_from, b=report.day_to)
+    if checkin:
+        return t(
+            {"ko": "오늘 사진 D+{d}", "ja": "本日の写真 D+{d}"}, lang
+        ).format(d=surgery.day_of(checkin.date))
+    return ""
+
+def _message_payload(message, surgery, lang):
+    """GET·POST가 같은 모양을 내려주도록 한 곳에서 만든다."""
+    return {
+        "id": message.id,
+        "sender_type": message.sender_type,
+        # created_at은 UTC 저장이라 localtime()을 거쳐야 D+N이 안 밀린다
+        "day": surgery.day_of(timezone.localtime(message.created_at).date()),
+        # 상담만 원문·번역문을 둘 다 내린다(규칙 6의 유일한 예외)
+        "body_original": message.body_original,
+        "lang_original": message.lang_original,
+        "body_translated": message.body_translated,
+        "lang_translated": message.lang_translated,
+        "tag": _tag(message, lang),
+        "attachments": _attachments(message, surgery),
+        "created_at": message.created_at,
+    }
+
+class ConsultMessageView(APIView):
+    def get(self, request):
+        surgery = request.user.surgery
+        if surgery is None:
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+        lang = request.user.lang
+        messages = (
+            surgery.consult_messages
+            .select_related("attached_checkin")
+            .all()                       # Meta.ordering = ["created_at"]
+        )
+
+        return Response({
+            "messages": [
+                _message_payload(msg, surgery, lang) for msg in messages
+            ]
+        })
+
+    def post(self, request):
+        surgery = request.user.surgery
+        if surgery is None:
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+        body = (request.data.get("body") or "").strip()
+        if not body:
+            return api_error("VALIDATION_ERROR", "내용을 입력해 주세요")
+
+        attach = request.data.get("attach") or {}
+        if not isinstance(attach, dict):
+            return api_error("VALIDATION_ERROR", "attach 형식이 올바르지 않습니다")
+
+        # 남의 리포트·체크인 id를 붙일 수 없게 소유권을 확인한다
+        report = checkin = None
+        if rid := attach.get("report_id"):
+            report = RecoveryReport.objects.filter(id=rid, surgery=surgery).first()
+            if report is None:
+                return api_error("NOT_FOUND", "첨부할 기록을 찾을 수 없습니다", 404)
+        if cid := attach.get("checkin_id"):
+            checkin = Checkin.objects.filter(id=cid, surgery=surgery).first()
+            if checkin is None:
+                return api_error("NOT_FOUND", "첨부할 체크인을 찾을 수 없습니다", 404)
+
+        lang = request.user.lang
+        translated, engine = translate(body, lang, CLINIC_LANG)
+
+        message = ConsultMessage.objects.create(
+            surgery=surgery,
+            sender_type=ConsultMessage.SenderType.PATIENT,
+            body_original=body,
+            lang_original=lang,
+            body_translated=translated,
+            lang_translated=CLINIC_LANG if translated else "",
+            translated_at=timezone.now() if translated else None,
+            translation_engine=engine,
+            attached_report=report,
+            attached_checkin=checkin,
+            attached_label=_attach_label(report, checkin, surgery, lang),
+        )
+
+        return Response(
+            _message_payload(message, surgery, lang),
+            status=status.HTTP_201_CREATED,
+        )
+
