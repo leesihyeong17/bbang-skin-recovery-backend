@@ -203,3 +203,28 @@ class CheckinComplete(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+class RecordPhotoList(APIView):
+    def get(self, request):
+        surgery = request.user.surgery
+        if not surgery:
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+        checkins = surgery.checkins.prefetch_related("photos").order_by("date")
+
+        items = []
+        for checkin in checkins:
+            photos = {
+                photo.angle: photo.image.storage.url(photo.image.name, expire=600)
+                for photo in checkin.photos.all()
+            }
+            if not photos:
+                continue
+            items.append({
+                "checkin_id": checkin.id,
+                "day": surgery.day_of(checkin.date),
+                "date": checkin.date,
+                "photos": photos,
+            })
+
+        return Response({"items": items}, status=status.HTTP_200_OK)
