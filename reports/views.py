@@ -4,6 +4,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from datetime import datetime, time
 
 from care.models import Appointment
 from care.services import completion
@@ -94,6 +95,24 @@ class ReportListView(APIView):
         lang = request.data.get("lang") or request.user.lang
         if lang not in ("ko", "ja", "en"):
             return api_error("VALIDATION_ERROR", "지원하지 않는 언어입니다")
+
+        # 제출용 뷰는 화면 진입마다 호출된다. 같은 날 같은 조건이면 이미 만든 걸 준다.
+        # 안 그러면 화면을 들락거릴 때마다 행이 쌓이고, 상담 첨부에서 어느 걸 고를지
+        # 모호해진다. 전달한 리포트를 그 시점 내용으로 고정하는 성질은 그대로 유지된다.
+        today = timezone.localdate()
+        day_start = timezone.make_aware(datetime.combine(today, time.min))
+        existing = (
+            surgery.reports.filter(
+                kind=kind,
+                lang=lang,
+                day_from=day_from,
+                day_to=day_to,
+                generated_at__gte=day_start,
+            )
+            .first()                      # Meta.ordering = ["-generated_at"] → 최신
+        )
+        if existing:
+            return Response(_payload(existing), status=status.HTTP_200_OK)
 
         report = RecoveryReport.objects.create(
             surgery=surgery,
