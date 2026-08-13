@@ -5,6 +5,9 @@ Clinic · Appointment 조회와 상담. 모델은 accounts · care에 있고 여
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from django.utils import timezone
+
+from care.models import Appointment
 
 
 # Create your views here.
@@ -42,6 +45,19 @@ def _doc(key, filefield, lang):
         "url": filefield.storage.url(filefield.name),
     }
 
+def _appointment_status(appointment, now):
+    """저장된 상태를 존중하되, 지난 '예정'만 완료로 본다(계약 843행).
+
+    done · missed는 병원이 명시적으로 넣은 값이므로 덮어쓰지 않는다.
+    자동 전환은 scheduled 하나뿐이다.
+    """
+    if appointment.status != Appointment.Status.SCHEDULED:
+        return appointment.status
+    return (
+        Appointment.Status.DONE
+        if appointment.scheduled_at <= now
+        else Appointment.Status.SCHEDULED
+    )
 
 class ClinicView(APIView):
     def get(self, request):
@@ -73,3 +89,30 @@ class ClinicView(APIView):
                 "scope_notice": t(SCOPE_NOTICE, lang),
             }
         )
+
+class AppointmentListView(APIView):
+    def get(self, request):
+        surgery = request.user.surgery
+        if surgery is None:
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+        lang = request.user.lang
+        now = timezone.now()
+
+        items = []
+        for a in surgery.appointments.all():        # Meta.ordering = ["scheduled_at"]
+            # UTC로 저장되므로 .date()를 바로 쓰면 KST 09시 이전이 전날로 밀린다.
+            local = timezone.localtime(a.scheduled_at)
+            items.append(
+                {
+                    "id": a.id,
+                    "day": surgery.day_of(local.date()),
+                    "date": local.date(),
+                    "scheduled_at": local,
+                    "title": t(a.title, lang),
+                    "kind": a.kind,
+                    "status": _appointment_status(a, now),
+                }
+            )
+
+        return Response({"items": items})

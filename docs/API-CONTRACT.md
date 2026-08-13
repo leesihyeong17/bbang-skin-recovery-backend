@@ -840,11 +840,14 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 #### `GET /appointments`
 
 ```json
-{ "items": [ { "id": 1, "day": 5, "date": "2026-08-08", "title": "부목 제거",
-               "kind": "visit", "status": "scheduled" } ] }
+{ "items": [ { "id": 1, "day": 5, "date": "2026-08-08",
+               "scheduled_at": "2026-08-08T10:00:00+09:00",
+               "title": "부목 제거", "kind": "visit", "status": "scheduled" } ] }
 ```
 
-`status`는 `scheduled_at`이 지나면 서버가 `done`으로 계산해서 내려줍니다.
+`scheduled_at`은 KST 오프셋이 붙은 ISO 문자열입니다. 시각까지 필요한 화면을 위해 원본을 함께 내리고, `day`·`date`는 KST 기준으로 파생합니다.
+
+`status`는 `scheduled_at`이 지나면 서버가 `done`으로 계산해서 내려줍니다. **자동 전환은 `scheduled` → `done` 하나뿐입니다.** `missed`는 병원이 명시적으로 넣은 값이므로 덮어쓰지 않습니다.
 
 ---
 
