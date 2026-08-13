@@ -133,3 +133,16 @@ def _summary(report):
         "day_to": report.day_to,
         "generated_at": report.generated_at,
     }
+
+class ReportDetailView(APIView):
+    def get(self, request, report_id):
+        surgery = request.user.surgery
+        if surgery is None:
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+        # 남의 리포트 id를 넣어도 404 — 존재 여부를 알려주지 않는다
+        report = RecoveryReport.objects.filter(id=report_id, surgery=surgery).first()
+        if report is None:
+            return api_error("NOT_FOUND", "리포트를 찾을 수 없습니다", 404)
+
+        return Response(_payload(report))
