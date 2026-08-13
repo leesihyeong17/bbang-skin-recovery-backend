@@ -750,14 +750,16 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 
 ```json
 {
-  "day": 12, "photos": {...},
+  "day": 12, "date": "2026-08-15", "photos": {...},
   "symptoms": [ { "name": "부기", "medical_term": "부기 (edema)", "level": 3 } ],
-  "tasks_done":    [ { "name": "냉찜질", "done_count": 3, "times_per_day": 4 } ],
-  "tasks_missing": [ { "name": "압박 테이핑 교체" } ]
+  "tasks_done":    [ { "name": "냉찜질", "done_count": 4, "times_per_day": 4 } ],
+  "tasks_missing": [ { "name": "압박 테이핑 교체", "done_count": 2, "times_per_day": 3 } ]
 }
 ```
 
 `medical_term`은 **이름만 변환하고 등급은 변환하지 않습니다**(명세서 3.8).
+
+**`tasks_done`은 그날 회차를 다 채운 루틴입니다.** 부분 이행(3회 중 2회)은 `tasks_missing`에 들어가고, 진행도를 보여줄 수 있게 양쪽 다 `done_count` · `times_per_day`를 담습니다. 프론트가 완료 색상을 칠하는 기준이 "전부 완료"이므로 경계를 여기에 맞췄습니다.
 
 #### `POST /reports` — 제출용 · 귀국용 (명세서 3.9)
 

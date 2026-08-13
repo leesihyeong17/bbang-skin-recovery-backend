@@ -3,13 +3,16 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
-from care.services import completion
+from datetime import date, timedelta
+from calendar import monthrange
 
 from PIL import Image, UnidentifiedImageError
 from pillow_heif import register_heif_opener
 register_heif_opener()  # HEIC/HEIF를 Pillow에서 열 수 있게 한다
 
 from .models import Checkin, CheckinPhoto, CheckinSymptom
+from care.services import care_items, state_of, completion, _fill
+from protocols.models import ActivityRuleTemplate
 from django.db import transaction
 from .serializers import CheckinSerializer, CheckinSymptomSerializer
 
@@ -24,6 +27,35 @@ def _own_checkin(request, checkin_id):
         return None, api_error("NOT_FOUND", "체크인을 찾을 수 없습니다", 404)
 
     return checkin, None
+
+def _return_box(surgery, today, lang):
+    """귀국일 카드. 비행 규칙이 '귀국일에' 어떤 상태인지 담는다."""
+    if surgery.return_date is None:
+        return None
+
+    return_day = surgery.return_day
+    box = {
+        "date": surgery.return_date,
+        "day": return_day,
+        "dn": (surgery.return_date - today).days,
+        "flight_status": None,
+        "flight_text": "",
+    }
+
+    rule = (
+        ActivityRuleTemplate.objects.filter(
+            procedure_type=surgery.procedure_type, key="flight"
+        )
+        .prefetch_related("phases")
+        .first()
+    )
+    if rule:
+        phase = state_of(rule, return_day)
+        if phase:
+            box["flight_status"] = phase["status"]
+            box["flight_text"] = _fill(t(phase["text"], lang), surgery)
+
+    return box
 
 
 class CheckinList(APIView):
@@ -264,3 +296,44 @@ class RecordSymptomList(APIView):
             })
 
         return Response({"terms": list(terms.values())}, status=status.HTTP_200_OK)
+
+
+class RecordCalendar(APIView):
+    """월별 점 + 귀국 박스. 명세서 3.8"""
+
+    def get(self, request):
+        surgery = request.user.surgery
+        if surgery is None:
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+        today = timezone.localdate()
+        try:
+            year = int(request.query_params.get("year", today.year))
+            month = int(request.query_params.get("month", today.month))
+        except (TypeError, ValueError):
+            return api_error("VALIDATION_ERROR", "year와 month는 숫자여야 합니다")
+        if not 1 <= month <= 12:
+            return api_error("VALIDATION_ERROR", "month는 1~12 사이여야 합니다")
+        if not date.min.year <= year <= date.max.year:
+            return api_error("VALIDATION_ERROR", "year가 올바르지 않습니다")
+
+        first = date(year, month, 1)
+        last = date(year, month, monthrange(year, month)[1])
+
+        # 오늘 이후 날짜에는 has_checkin을 내리지 않는다(계약 727행).
+        checked = set(
+            surgery.checkins.filter(date__gte=first, date__lte=last)
+            .values_list("date", flat=True)
+        )
+
+        days = []
+        for i in range((last - first).days + 1):
+            d = first + timedelta(days=i)
+            if d > today:
+                break
+            days.append(
+                {"date": d, "day": surgery.day_of(d), "has_checkin": d in checked}
+            )
+
+        lang = request.user.lang
+        return Response({"return_box": _return_box(surgery, today, lang), "days": days})
