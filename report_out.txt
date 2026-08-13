@@ -1,0 +1,26 @@
+[DB] 체크인 5건 / 사진 5장
+
+--- kind 없음 -> 400
+{"error":{"code":"VALIDATION_ERROR","message":"kind는 submission 또는 repatriation입니다"}}
+
+--- day_to 없음 -> 400
+{"error":{"code":"VALIDATION_ERROR","message":"day_from과 day_to는 숫자여야 합니다"}}
+
+--- 역구간 -> 400
+{"error":{"code":"VALIDATION_ERROR","message":"구간은 D+0 ~ D+120 안이어야 합니다"}}
+
+--- 범위초과 -> 400
+{"error":{"code":"VALIDATION_ERROR","message":"구간은 D+0 ~ D+120 안이어야 합니다"}}
+
+--- 잘못된 lang -> 400
+{"error":{"code":"VALIDATION_ERROR","message":"지원하지 않는 언어입니다"}}
+
+--- 정상 -> 201
+{"id":2,"kind":"submission","lang":"ko","day_from":0,"day_to":11,"meta":{"checkin_count":3,"photo_count":5,"completion_rate":0.0,"procedure":"코성형 (융비술)","clinic":"서울 N성형외과의원","confirmed_at":"2026-08-10","next_confirm_at":"2026-09-02"},"body":{"symptom_flow":[{"kind":"info","text":"부기 — D+10 1회 기록"},{"kind":"info","text":"통증 — D+10 1회 기록"},{"kind":"info","text":"멍 — D+10 1회 기록"}],"care_adherence":[{"kind":"miss","text":"절개부 소독 — D+1~D+7 이행 기록 없음"},{"kind":"miss","text":"냉찜질 — D+0~D+3 이행 기록 없음"},{"kind":"miss","text":"온찜질 — D+4~D+10 이행 기록 없음"},{"kind":"miss","text":"상체 45° 수면 — D+0~D+11 이행 기록 없음"},{"kind":"miss","text":"짧은 보행 — D+1~D+11 이행 기록 없음"},{"kind":"miss","text":"코 안 생리식염수 — D+0~D+11 이행 기록 없음"},{"kind":"miss","text":"압박 테이핑 교체 — D+8~D+11 이행 기록 없음"}],"events":[{"kind":"info","text":"D+5 — 부목 제거"},{"kind":"info","text":"D+7 — 비주 실밥 제거"},{"kind":"info","text":"D+8 — 세안 — 제한 없음"},{"kind":"info","text":"D+11 — 장거리 비행 — 귀국일(D+14)이 이 구간 · 기내 수분과 보행 필수"}]},"disclaimer":"본 문서는 환자 자가 보고 기반이며 진단서가 아닙니다.","generated_at":"2026-08-13T19:47:05.827008Z"}
+
+
+[검증] meta.checkin_count=3 (실제 5) / meta.photo_count=5 (실제 5)
+
+[검증] body kind 분포: {'symptom_flow': ['info', 'info', 'info'], 'care_adherence': ['miss', 'miss', 'miss', 'miss', 'miss', 'miss', 'miss'], 'events': ['info', 'info', 'info', 'info']}
+
+[검증] 금지 kind: 없음

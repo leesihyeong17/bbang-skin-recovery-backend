@@ -1,0 +1,5 @@
+읽음 전 last_read=None unread=1
+POST /consult/read -> 204 body=b''
+읽음 후 last_read=2026-08-13 19:19:50.152866+00:00 unread=0
+두 번째 -> 204 last_read=2026-08-13 19:19:50.167868+00:00
+GET /consult/read -> 405

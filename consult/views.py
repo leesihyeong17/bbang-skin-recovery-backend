@@ -355,3 +355,12 @@ class ConsultMessageView(APIView):
             status=status.HTTP_201_CREATED,
         )
 
+class ConsultReadView(APIView):
+    def post(self, request):
+        surgery = request.user.surgery
+        if surgery is None:
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+        surgery.consult_last_read_at = timezone.now()
+        surgery.save(update_fields=["consult_last_read_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)

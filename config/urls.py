@@ -9,7 +9,7 @@ urlpatterns = [
     path("api/v1/", include("accounts.urls")),
     path("api/v1/", include("care.urls")),
     path("api/v1/", include("checkins.urls")),
-    # path("api/v1/", include("reports.urls")),
+    path("api/v1/", include("reports.urls")),
     path("api/v1/", include("consult.urls")),
 ]
 
