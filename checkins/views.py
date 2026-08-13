@@ -1,4 +1,4 @@
-from config.utils import api_error
+from config.utils import api_error, t
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -24,21 +24,30 @@ def _own_checkin(request, checkin_id):
 
     return checkin, None
 
+def _completion_rate(surgery, day):
+    """완주율.
+
+    TODO: A가 care/services.py에 completion()을 만들면 그걸로 교체할 것.
+          accounts/views.py의 _stage_of()와 같은 성격의 임시 코드.
+    """
+    return None
+
+
 class CheckinList(APIView):
     def post(self, request, format=None):
         surgery = request.user.surgery
         if not surgery:
-            return Response({"error": "VALIDATION_ERROR", "message": "등록된 수술이 없습니다."}, status=status.HTTP_404_NOT_FOUND)
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
 
         serializer = CheckinSerializer(data=request.data)
 
         if not serializer.is_valid():
-            return Response({"error": "VALIDATION_ERROR", "message": "입력값을 확인해주세요"}, status=status.HTTP_400_BAD_REQUEST)
+                return api_error("VALIDATION_ERROR", "입력값을 확인해주세요")
 
         date = serializer.validated_data.get('date') or timezone.localdate()
         day = surgery.day_of(date)
         if day < 0 or day > surgery.program_days:
-            return Response({"error": "VALIDATION_ERROR", "message": "체크인 날짜가 수술 범위를 벗어났습니다."}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error("VALIDATION_ERROR", "체크인 날짜가 수술 범위를 벗어났습니다.")
 
         existing_checkin = Checkin.objects.filter(surgery=surgery, date=date).first()
         if existing_checkin:
@@ -58,8 +67,7 @@ class CheckinList(APIView):
         return Response(
             {
                 "checkin_id": checkin.id, "day": day, "date": date,
-                "photos": [], "symptoms": [], "completed": False,
-                "required_angles": ["front", "left", "right"],
+                "photos": {}, "symptoms": {}, "completed": False,
                 "symptom_terms": [term.key for term in surgery.procedure_type.symptom_terms.all()]
             }, 
                 status=status.HTTP_201_CREATED
@@ -131,7 +139,7 @@ class CheckinSymptomUpdate(APIView):
             return err
         surgery = checkin.surgery 
 
-        terms = {t.key: t for t in surgery.procedure_type.symptom_terms.all()}
+        terms = {term.key: term for term in surgery.procedure_type.symptom_terms.all()}
         serializer = CheckinSymptomSerializer(data=request.data, context={"terms": terms})
         if not serializer.is_valid():
             detail = serializer.errors.get("symptoms")
@@ -157,6 +165,41 @@ class CheckinSymptomUpdate(APIView):
                 "date": checkin.date,
                 "symptoms": {s.term.key: s.level for s in checkin.symptoms.select_related("term").order_by("term__order")},
                 "completed": checkin.completed_at is not None,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class CheckinComplete(APIView):
+    def post(self, request, checkin_id, format=None):
+        checkin, err = _own_checkin(request, checkin_id)
+        if err:
+            return err
+        surgery = checkin.surgery
+
+        lang = request.user.lang
+
+        angles = set(checkin.photos.values_list("angle", flat=True))
+        need = set(CheckinPhoto.Angle.values) - angles
+        if need:
+            return api_error("VALIDATION_ERROR", f"사진 {len(need)}컷이 더 필요해요",
+                             "required_angles", [t(f"checkin.photo.{a}", lang) for a in need])
+        
+        terms = {term.key: term for term in surgery.procedure_type.symptom_terms.all()}
+        submitted = set(checkin.symptoms.values_list("term__key", flat=True))
+        need = [terms[k] for k in terms if k not in submitted]
+        if need:
+            names = " · ".join(t(term.name, lang) for term in need)
+            return api_error("VALIDATION_ERROR", f"선택하지 않은 항목이 있어요 — {names}")
+
+        checkin.completed_at = timezone.now()
+        checkin.save(update_fields=["completed_at"])
+
+        day = surgery.day_of(checkin.date)
+        return Response(
+            {
+                "completed_at": checkin.completed_at,
+                "day": day,
+                "completion_rate": _completion_rate(surgery, day),
             },
             status=status.HTTP_200_OK,
         )
