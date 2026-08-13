@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from datetime import date, timedelta
 from calendar import monthrange
 
@@ -15,6 +16,8 @@ from care.services import care_items, state_of, completion, _fill
 from protocols.models import ActivityRuleTemplate
 from django.db import transaction
 from .serializers import CheckinSerializer, CheckinSymptomSerializer
+
+PHOTO_EXPIRE = 600  # S3 presigned URL 만료 시간. 초 단위. 10분이면 충분하다
 
 def _own_checkin(request, checkin_id):
     """요청자가 소유한 체크인인지 확인. 아니면 404를 던진다."""
@@ -150,7 +153,7 @@ class CheckinPhotoUpload(APIView):
         return Response(
             {
                 "angle": angle,
-                "url": photo.image.storage.url(photo.image.name, expire=600),
+                "url": photo.image.storage.url(photo.image.name, expire=PHOTO_EXPIRE),
                 "taken_at": photo.taken_at,
                 "photo_count": checkin.photos.count(),
             },
@@ -240,7 +243,7 @@ class RecordPhotoList(APIView):
         items = []
         for checkin in checkins:
             photos = {
-                photo.angle: photo.image.storage.url(photo.image.name, expire=600)
+                photo.angle: photo.image.storage.url(photo.image.name, expire=PHOTO_EXPIRE)
                 for photo in checkin.photos.all()
             }
             if not photos:
@@ -337,3 +340,74 @@ class RecordCalendar(APIView):
 
         lang = request.user.lang
         return Response({"return_box": _return_box(surgery, today, lang), "days": days})
+
+class RecordDay(APIView):
+    """날짜 상세 시트. level과 medical_term이 함께 나가는 유일한 곳(계약 754행)."""
+
+    def get(self, request):
+        surgery = request.user.surgery
+        if surgery is None:
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+        raw = request.query_params.get("date")
+        if not raw:
+            return api_error("VALIDATION_ERROR", "date를 지정해 주세요")
+        parsed = parse_date(raw)
+        if parsed is None:
+            return api_error("VALIDATION_ERROR", "date 형식이 올바르지 않습니다 (YYYY-MM-DD)")
+
+        day = surgery.day_of(parsed)
+        if not 0 <= day <= surgery.program_days:
+            return api_error("VALIDATION_ERROR", "기록 기간을 벗어난 날짜입니다")
+        lang = request.user.lang
+
+        checkin = (
+            surgery.checkins.filter(date=parsed)
+            .prefetch_related("photos", "symptoms__term")
+            .first()
+        )
+
+        photos, symptoms = {}, []
+        if checkin:
+            photos = {
+                p.angle: p.image.storage.url(p.image.name, expire=PHOTO_EXPIRE)
+                for p in checkin.photos.all()
+            }
+            symptoms = [
+                {
+                    "name": t(s.term.name, lang),
+                    # 이름만 변환하고 등급은 변환하지 않는다(계약 760행)
+                    "medical_term": t(s.term.medical_term, lang),
+                    "level": s.level,
+                }
+                for s in sorted(checkin.symptoms.all(), key=lambda s: s.term.order)
+            ]
+
+        items = care_items(surgery, day, lang)
+        tasks_done, tasks_missing = [], []
+        for task in items["tasks"]:
+            if task["done_count"] >= task["times_per_day"]:
+                tasks_done.append(
+                    {
+                        "name": task["name"],
+                        "done_count": task["done_count"],
+                        "times_per_day": task["times_per_day"],
+                    }
+                )
+            else:
+                tasks_missing.append({
+                    "name": task["name"],
+                    "done_count": task["done_count"],
+                    "times_per_day": task["times_per_day"],
+                })
+
+        return Response(
+            {
+                "day": day,
+                "date": parsed,
+                "photos": photos,
+                "symptoms": symptoms,
+                "tasks_done": tasks_done,
+                "tasks_missing": tasks_missing,
+            }
+        )

@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from checkins.views import CheckinList, CheckinPhotoUpload, CheckinSymptomUpdate, CheckinComplete, RecordPhotoList, RecordSymptomList, RecordCalendar
+from checkins.views import RecordDay
 
 urlpatterns = [
     path("checkins", CheckinList.as_view(), name="checkin-list"),
@@ -10,4 +11,5 @@ urlpatterns = [
     path("records/photos", RecordPhotoList.as_view(), name="record-photos"),
     path("records/symptoms", RecordSymptomList.as_view(), name="record-symptoms"),
     path("records/calendar", RecordCalendar.as_view(), name="record-calendar"),
+    path("records/day", RecordDay.as_view(), name="record-day"),
 ]
