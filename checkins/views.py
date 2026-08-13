@@ -207,7 +207,7 @@ class CheckinComplete(APIView):
 class RecordPhotoList(APIView):
     def get(self, request):
         surgery = request.user.surgery
-        if not surgery:
+        if surgery is None:
             return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
 
         checkins = surgery.checkins.prefetch_related("photos").order_by("date")
@@ -228,3 +228,46 @@ class RecordPhotoList(APIView):
             })
 
         return Response({"items": items}, status=status.HTTP_200_OK)
+
+
+class RecordSymptomList(APIView):
+    def get(self, request):
+        surgery = request.user.surgery
+        if surgery is None:
+            return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
+
+        try:
+            days = int(request.query_params.get("days", 14))
+        except (ValueError, TypeError):
+            return api_error("VALIDATION_ERROR", "days는 숫자여야 합니다")
+        if not 1 <= days <= surgery.program_days:
+            return api_error("VALIDATION_ERROR", f"days는 1~{surgery.program_days} 사이여야 합니다")
+
+        today = timezone.localdate()
+        start = today - timezone.timedelta(days=days-1)
+
+        rows = (
+            CheckinSymptom.objects.filter(
+                checkin__surgery=surgery, 
+                checkin__date__gte=start,
+                checkin__date__lte=today,
+            )
+            .select_related("term", "checkin")
+            .order_by("term__order", "checkin__date")
+        )
+        lang = request.user.lang
+        terms = {}
+        for row in rows:
+            entry = terms.setdefault(
+                row.term_id, {
+                    "key": row.term.key,
+                    "name": t(row.term.name, lang),
+                    "points": [],
+                },
+            )
+            entry["points"].append({
+                "day": surgery.day_of(row.checkin.date),
+                "level": row.level,
+            })
+
+        return Response({"terms": list(terms.values())}, status=status.HTTP_200_OK)
