@@ -5,4 +5,5 @@ from checkins.views import *
 urlpatterns = [
     path("checkins", CheckinList.as_view(), name="checkin-list"),
     path("checkins/<int:checkin_id>/photos", CheckinPhotoUpload.as_view(), name="checkin-photos"),
+    path("checkins/<int:checkin_id>/symptoms", CheckinSymptomUpdate.as_view(), name="checkin-symptoms"),
 ]
