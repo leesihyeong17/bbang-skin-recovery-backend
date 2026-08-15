@@ -92,6 +92,13 @@ class ReportListView(APIView):
                 f"구간은 D+0 ~ D+{surgery.program_days} 안이어야 합니다",
             )
 
+        # 미래를 담으면 completion()의 분모에 오지 않은 날이 들어가 완주율이 실제보다
+        # 낮게 나가고, care_adherence가 미래 루틴을 미이행으로 기록한다.
+        # 병원에 내는 문서라 사실이 아닌 줄이 붙으면 안 된다.
+        today_day = surgery.day_of(timezone.localdate())
+        if day_to > today_day:
+            return api_error("VALIDATION_ERROR", "아직 오지 않은 날짜는 담을 수 없습니다")
+
         lang = request.data.get("lang") or request.user.lang
         if lang not in ("ko", "ja", "en"):
             return api_error("VALIDATION_ERROR", "지원하지 않는 언어입니다")

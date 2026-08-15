@@ -358,6 +358,11 @@ class RecordDay(APIView):
         day = surgery.day_of(parsed)
         if not 0 <= day <= surgery.program_days:
             return api_error("VALIDATION_ERROR", "기록 기간을 벗어난 날짜입니다")
+        # 미래를 열면 care_items()가 아직 오지 않은 루틴을 전부 미이행으로 내려준다.
+        # 기록 시트라 "안 한 것"으로 보이면 안 된다.
+        if parsed > timezone.localdate():
+            return api_error("VALIDATION_ERROR", "아직 오지 않은 날짜입니다")
+
         lang = request.user.lang
 
         checkin = (
