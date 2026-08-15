@@ -101,13 +101,41 @@ ADHERENCE_MISS = {
     "ko": "{name} — D+{a}~D+{b} 이행 기록 없음",
     "ja": "{name} — D+{a}~D+{b} 実施記録なし",
 }
+# 매일 기록은 있는데 하루 목표 횟수를 한 번도 채우지 못한 경우.
+# 이걸 "이행 기록 없음"으로 쓰면 병원에 사실과 다르게 전달된다.
+ADHERENCE_PARTIAL_ONLY = {
+    "ko": "{name} — D+{a}~D+{b} 중 {logged}일 기록, 하루 {per}회 목표는 미달",
+    "ja": "{name} — D+{a}~D+{b} のうち{logged}日記録、1日{per}回の目標には未達",
+}
+
+
+def _adherence_targets(surgery, lang):
+    """이행을 따질 대상. (key, 이름, day_from, day_to, 하루 횟수) 목록.
+
+    템플릿 + 복약입니다. 복약은 마스터에 없고 처방에서 합성되는데,
+    completion()이 완주율에 포함하므로 리포트에도 같이 실려야 숫자와 문장이 맞습니다.
+    services._medication_task()와 같은 조건을 씁니다.
+    """
+    targets = [
+        (tpl.key, t(tpl.name, lang), tpl.day_from, tpl.day_to, tpl.times_per_day)
+        for tpl in CareTaskTemplate.objects.filter(procedure_type=surgery.procedure_type)
+    ]
+
+    rx = getattr(surgery, "prescription", None)
+    if rx and rx.confirmed_at:
+        regular = rx.items.filter(is_prn=False).count()   # 돈복은 세지 않는다
+        if regular:
+            name = t({"ko": f"처방약 {regular}종", "ja": f"処方薬 {regular}種"}, lang)
+            targets.append(("medication", name, 0, (rx.total_days or 1) - 1, rx.per_day or 1))
+
+    return targets
 
 
 def care_adherence(surgery, day_from, day_to, lang):
     """완주율과 같은 원천(TaskLog)을 쓴다. 화면과 리포트가 어긋나지 않도록."""
     from checkins.models import TaskLog
 
-    templates = CareTaskTemplate.objects.filter(procedure_type=surgery.procedure_type)
+    targets = _adherence_targets(surgery, lang)
     logs = {
         (r["task_key"], r["date"]): r["done_count"]
         for r in TaskLog.objects.filter(
@@ -118,24 +146,25 @@ def care_adherence(surgery, day_from, day_to, lang):
     }
 
     out = []
-    for tpl in templates:
-        a = max(day_from, tpl.day_from)
-        b = min(day_to, tpl.day_to)
+    for key, name, task_from, task_to, per_day in targets:
+        a = max(day_from, task_from)
+        b = min(day_to, task_to)
         if a > b:
             continue                        # 이 구간에 해당 없는 루틴
 
         total = b - a + 1
-        done = sum(
-            1
-            for d in range(a, b + 1)
-            if logs.get((tpl.key, surgery.date_of(d)), 0) >= tpl.times_per_day
-        )
-        name = t(tpl.name, lang)
+        counts = [logs.get((key, surgery.date_of(d)), 0) for d in range(a, b + 1)]
+        done = sum(1 for c in counts if c >= per_day)     # 목표를 채운 날
+        logged = sum(1 for c in counts if c > 0)          # 조금이라도 한 날
 
         if done == total:
             out.append(_line("ok", t(ADHERENCE_OK, lang).format(name=name, a=a, b=b)))
-        elif done == 0:
+        elif logged == 0:
             out.append(_line("miss", t(ADHERENCE_MISS, lang).format(name=name, a=a, b=b)))
+        elif done == 0:
+            # 기록은 있으나 목표 횟수를 채운 날이 없다. miss로 쓰면 사실과 다르다.
+            out.append(_line("part", t(ADHERENCE_PARTIAL_ONLY, lang).format(
+                name=name, a=a, b=b, logged=logged, per=per_day)))
         else:
             out.append(_line("part", t(ADHERENCE_PART, lang).format(
                 name=name, a=a, b=b, done=done, total=total)))

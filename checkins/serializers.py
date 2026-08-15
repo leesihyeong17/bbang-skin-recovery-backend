@@ -8,8 +8,8 @@ class CheckinSerializer(serializers.ModelSerializer):
         fields = ['id', 'date', 'day', 'completed_at']
         read_only_fields = ['completed_at']
         extra_kwargs = {
-            'date': {'required': False},
-        } #없으면 오늘 날짜로
+            'date': {'required': False},# date 필드는 Checkin 생성 시 자동으로 설정되므로, 클라이언트에서 제공할 필요가 없음
+        } 
 
     def get_day(self, obj) -> int:
         return obj.surgery.day_of(obj.date)

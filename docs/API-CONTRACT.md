@@ -681,7 +681,19 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 { "date": "2026-08-06" }
 ```
 
-이미 있으면 `409` + 기존 `id` 반환. 하루 1회 제약.
+이미 있으면 `409` + 기존 `checkin_id` 반환. 하루 1회 제약.
+
+```json
+// 201
+{ "checkin_id": 7, "day": 3, "date": "2026-08-06", "completed": false,
+  "symptom_terms": ["swelling", "pain", "bruise"] }
+
+// 409 — 정상 분기입니다. error.code를 보고 checkin_id로 이어가세요
+{ "error": { "code": "CHECKIN_ALREADY_EXISTS", "message": "오늘은 이미 체크인 완료" },
+  "checkin_id": 7, "day": 3, "date": "2026-08-06" }
+```
+
+`GET /home`의 `checkin.checkin_id`가 있으면 이 호출을 **건너뛰고** 바로 사진 업로드로 가면 됩니다.
 
 #### `POST /checkins/{id}/photos`
 

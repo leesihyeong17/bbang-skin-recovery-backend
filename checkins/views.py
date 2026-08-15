@@ -70,7 +70,7 @@ class CheckinList(APIView):
         serializer = CheckinSerializer(data=request.data)
 
         if not serializer.is_valid():
-                return api_error("VALIDATION_ERROR", "입력값을 확인해주세요")
+            return api_error("VALIDATION_ERROR", "입력값을 확인해주세요")
 
         date = serializer.validated_data.get('date') or timezone.localdate()
         day = surgery.day_of(date)
@@ -83,9 +83,8 @@ class CheckinList(APIView):
                 "error":{
                     "code": "CHECKIN_ALREADY_EXISTS",
                     "message": "오늘은 이미 체크인 완료"
-
                 },
-                "id": existing_checkin.id,
+                "checkin_id": existing_checkin.id,
                 "day": day,
                 "date": date
                 }, 
@@ -95,11 +94,11 @@ class CheckinList(APIView):
         return Response(
             {
                 "checkin_id": checkin.id, "day": day, "date": date,
-                "photos": {}, "symptoms": {}, "completed": False,
+                "completed": False,
                 "symptom_terms": [term.key for term in surgery.procedure_type.symptom_terms.all()]
             }, 
-                status=status.HTTP_201_CREATED
-            )
+            status=status.HTTP_201_CREATED
+        )
 
 ALLOWED_FORMATS = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp", "HEIF": "heic"}
 
@@ -359,6 +358,11 @@ class RecordDay(APIView):
         day = surgery.day_of(parsed)
         if not 0 <= day <= surgery.program_days:
             return api_error("VALIDATION_ERROR", "기록 기간을 벗어난 날짜입니다")
+        # 미래를 열면 care_items()가 아직 오지 않은 루틴을 전부 미이행으로 내려준다.
+        # 기록 시트라 "안 한 것"으로 보이면 안 된다.
+        if parsed > timezone.localdate():
+            return api_error("VALIDATION_ERROR", "아직 오지 않은 날짜입니다")
+
         lang = request.user.lang
 
         checkin = (
