@@ -22,6 +22,8 @@ care/services.py — D+N 계산 계층
     timeline(surgery)                    앞으로의 변화
     validate_task_key(surgery, day, key) PUT /task-logs 검증
 """
+from config.utils import t as pick
+
 from datetime import date
 
 from checkins.models import TaskLog

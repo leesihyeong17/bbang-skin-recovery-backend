@@ -95,7 +95,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "antisep",
-      "icon": "",
+      "icon": "🧴",
       "name": {
         "ko": "절개부 소독",
         "ja": "切開部の消毒"
@@ -122,7 +122,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "ice",
-      "icon": "",
+      "icon": "🧊",
       "name": {
         "ko": "냉찜질",
         "ja": "冷やす（アイシング）"
@@ -149,7 +149,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "warm",
-      "icon": "",
+      "icon": "♨️",
       "name": {
         "ko": "온찜질",
         "ja": "温める（温罨法）"
@@ -176,7 +176,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "sleep45",
-      "icon": "",
+      "icon": "🛏️",
       "name": {
         "ko": "상체 45° 수면",
         "ja": "上体45°での就寝"
@@ -203,7 +203,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "walk",
-      "icon": "",
+      "icon": "🚶",
       "name": {
         "ko": "짧은 보행",
         "ja": "短い歩行"
@@ -230,7 +230,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "saline",
-      "icon": "",
+      "icon": "💧",
       "name": {
         "ko": "코 안 생리식염수",
         "ja": "鼻内の生理食塩水洗浄"
@@ -257,7 +257,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "tape",
-      "icon": "",
+      "icon": "🩹",
       "name": {
         "ko": "압박 테이핑 교체",
         "ja": "圧迫テーピングの交換"
@@ -284,7 +284,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "wash",
-      "icon": "",
+      "icon": "🧼",
       "name": {
         "ko": "세안",
         "ja": "洗顔"
@@ -334,7 +334,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "makeup",
-      "icon": "",
+      "icon": "💄",
       "name": {
         "ko": "색조화장",
         "ja": "ポイントメイク"
@@ -384,7 +384,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "ex",
-      "icon": "",
+      "icon": "🏃",
       "name": {
         "ko": "운동",
         "ja": "運動"
@@ -448,7 +448,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "drink",
-      "icon": "",
+      "icon": "🍺",
       "name": {
         "ko": "음주 · 흡연",
         "ja": "飲酒・喫煙"
@@ -498,7 +498,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "glasses",
-      "icon": "",
+      "icon": "👓",
       "name": {
         "ko": "안경 착용",
         "ja": "眼鏡の着用"
@@ -562,7 +562,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "mass",
-      "icon": "",
+      "icon": "🤲",
       "name": {
         "ko": "코 마사지 · 코팩",
         "ja": "鼻のマッサージ・鼻パック"
@@ -612,7 +612,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "blow",
-      "icon": "",
+      "icon": "🤧",
       "name": {
         "ko": "코 풀기",
         "ja": "鼻をかむこと"
@@ -662,7 +662,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "flight",
-      "icon": "",
+      "icon": "✈️",
       "name": {
         "ko": "장거리 비행",
         "ja": "長距離フライト"
@@ -726,7 +726,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "sauna",
-      "icon": "",
+      "icon": "🔥",
       "name": {
         "ko": "사우나 · 온천",
         "ja": "サウナ・温泉"
@@ -790,7 +790,7 @@
     "fields": {
       "procedure_type": 1,
       "key": "side",
-      "icon": "",
+      "icon": "😴",
       "name": {
         "ko": "옆으로 · 엎드려 눕기",
         "ja": "横向き・うつ伏せ寝"

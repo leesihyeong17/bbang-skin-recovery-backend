@@ -7,11 +7,10 @@ from django.urls import include, path
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v1/", include("accounts.urls")),
-    # 앱이 준비되는 대로 아래를 열어주세요
-    # path("api/v1/", include("care.urls")),
-    # path("api/v1/", include("checkins.urls")),
-    # path("api/v1/", include("reports.urls")),
-    # path("api/v1/", include("consult.urls")),
+    path("api/v1/", include("care.urls")),
+    path("api/v1/", include("checkins.urls")),
+    path("api/v1/", include("reports.urls")),
+    path("api/v1/", include("consult.urls")),
 ]
 
 # 로컬 저장 파일(안내문 PDF · 수술확인서) 개발용 서빙.

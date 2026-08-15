@@ -131,6 +131,9 @@ DB에는 `{"ko": "…", "ja": "…"}` 형태로 저장하지만, **API 응답에
 | `/care-plan/schedule` | `/schedule?year&month` + `/schedule/day?date` | 캘린더가 월 단위 조회 |
 | `/onboarding/documents` | `/onboarding/status` | 문서 테이블이 없어졌으므로 |
 | `/prescriptions/{id}/confirm` | `/prescriptions/confirm` | 환자당 처방이 1개(O2O) |
+| `PATCH /me/language` | `POST /auth/login`의 `lang` 필드 | 스플래시에서 언어 고르고 바로 로그인하므로 왕복 1회가 줄어듦 |
+| 로그인 응답 `state: "onboarding_required"` | `care_status: "onboarding"` | `Surgery.care_status` 컬럼과 이름·값이 그대로 일치 |
+| `POST /prescriptions/retake` | `POST /prescriptions/ocr` 재호출 | 확정 전이면 재호출이 곧 재촬영. 상태 하나가 줄어듦 |
 
 ### 만들지 않는 것과 대체 방법
 
@@ -141,15 +144,17 @@ DB에는 `{"ko": "…", "ja": "…"}` 형태로 저장하지만, **API 응답에
 | `MilestoneTemplate` 테이블 | `/schedule`의 `events`가 규칙 구간에서 파생 |
 | `PatientTask` / `PatientRule` 테이블 | `care_items()`가 템플릿 + 답변으로 계산 |
 | `ReportApproval` 테이블 | 병원 확인 이력을 `Appointment`에서 파생 |
-| `POST /reports/{id}/pdf` | `@media print` HTML 뷰. 여유 시 구현 |
+| `POST /reports/{id}/pdf` | `GET /reports/{id}/pdf`. `@media print` HTML 뷰로 대체 가능 |
 | `POST /onboarding/return-date/preview` | `GET /onboarding/questions`가 비행 규칙 구간을 함께 주고 프론트가 로컬 계산 |
+
 ### 호출 시퀀스
 
 **첫 실행 (온보딩)**
 
 ```
-스플래시    PATCH /me/language                → { lang: "ja" } · 이후 잠금
-로그인      POST  /auth/login                 → state: "onboarding_required"
+스플래시    (언어 선택만. 서버 호출 없음)
+로그인      POST  /auth/login                 → { lang: "ja" } 동봉 · 이후 잠금
+                                              → care_status: "onboarding"
             GET   /me                         → 환자·병원·시술 기본 정보
 
 STEP 1      GET   /onboarding/status          → 자료 3종 조립 결과 (테이블 조회 아님)
@@ -202,35 +207,31 @@ STEP 3      GET   /onboarding/questions       → 질문 2개 + 귀국일 기본
 ### `POST /auth/login`
 
 ```json
-{ "patient_code": "NR-2608-0417", "dob": "1994-05-12" }
+{ "patient_code": "NR-2608-0417", "dob": "19940512", "lang": "ja" }
 ```
+
+`dob`는 화면 입력 그대로 8자리 문자열입니다. 하이픈을 넣으면 `PatientManager.create_user()`가 만든 해시와 어긋납니다.
 
 ```json
 {
   "access": "eyJ…", "refresh": "eyJ…",
   "patient": {
-    "id": 1, "code": "NR-2608-0417",
+    "patient_code": "NR-2608-0417",
     "name": "사토 유이", "name_romaji": "SATO YUI",
     "nationality": "JP", "lang": "ja", "lang_locked": false
   },
-  "state": "onboarding_required",
+  "care_status": "onboarding",
   "surgery_id": 1
 }
 ```
 
-`state`: `language_required` / `onboarding_required` / `active`
+`care_status`: `onboarding` / `active` / `completed` — `Surgery.care_status` 컬럼 값 그대로입니다.
+
+언어는 **별도 엔드포인트가 아니라 이 요청의 `lang` 필드**로 정합니다. 스플래시에서 고른 값을 로그인에 실어 보내면 왕복이 한 번 줄고, 잠긴 뒤에는 서버가 조용히 무시합니다(`lang_locked_at` 기준). 초안의 `PATCH /me/language`와 `LANG_ALREADY_LOCKED` 에러는 폐기했습니다.
 
 ### `POST /auth/refresh`
 
-표준 SimpleJWT.
-
-### `PATCH /me/language`
-
-```json
-{ "lang": "ja" }
-```
-
-성공 시 `lang_locked_at`이 설정되고 이후 호출은 `LANG_ALREADY_LOCKED`. 프로토타입의 `언어는 지금 한 번만 선택합니다` 경고를 서버에서 강제합니다.
+표준 SimpleJWT. 단 실패 응답은 9.0 에러 포맷으로 감쌉니다 — 기본 `{"detail":…}`가 나가면 프론트의 `error.code` 분기가 여기서만 깨집니다.
 
 ### `GET /me`
 
@@ -357,9 +358,7 @@ Body 없음. 환자 더블체크 완료. `Prescription`이 `Surgery`와 O2O라 `
 
 ⚠️ **`PUT /task-logs`의 `task_key` 검증 목록에 `medication`을 반드시 포함하세요.** 빠지면 복약 체크가 `UNKNOWN_TASK_KEY`로 튕깁니다. `is_prn=True` 약은 개수에서 제외합니다.
 
-### `POST /prescriptions/retake`
-
-기존 OCR 결과 폐기 후 재촬영 대기 상태로.
+재촬영은 별도 엔드포인트가 아니라 **`POST /prescriptions/ocr` 재호출**입니다. `confirm` 전이면 이전 `ocr_id`가 폐기되고 새 키가 나갑니다. 초안의 `POST /prescriptions/retake`는 폐기했습니다 — 서버에 "재촬영 대기" 상태를 두면 저장하지 않는다는 원칙과 어긋납니다.
 
 ### `GET /onboarding/surgery` — STEP 2 시술 확인
 
@@ -874,11 +873,15 @@ URL은 60초 만료 presigned입니다.
 
 `ips_mapping`은 발표용입니다. 국제 표준 대응을 데이터로 보여줄 수 있습니다.
 
-### `GET /reports/{id}`
+### `GET /reports?kind=` · `GET /reports/{id}`
+
+목록과 단건. 기록 탭에서 지난 리포트를 다시 열 때 씁니다.
 
 ### `GET /reports/{id}/pdf?langs=ko,ja`
 
 `application/pdf`. 두 언어를 넘기면 한 파일에 순차 배치합니다. 프로토타입의 `한국어 + 日本語 함께 PDF로 저장`.
+
+P2라서 `@media print` HTML 뷰로 대체해도 됩니다. 그 경우 **경로는 그대로 두고** `text/html`을 반환합니다 — 프론트 링크를 바꾸지 않기 위함입니다.
 
 ---
 
@@ -985,22 +988,21 @@ URL은 60초 만료 presigned입니다.
 
 ### `GET /notifications`
 
+초안은 `groups[]`로 2단 중첩했는데, 9장은 **평평한 `items[]`**입니다. 종류가 2개뿐이라 그룹 헤더는 프론트가 `type`으로 묶으면 되고, 중첩이 사라지면 `unread` 판정이 항목 단위로 내려갑니다.
+
 ```json
 {
-  "groups": [
-    { "kind": "doctor_reply", "label": "병원 답변",
-      "items": [ { "message_id": 9, "title": "김서준님이 답변했어요",
-                   "body": "초기 반흔 조직이 자리잡는 과정에서 흔히 느끼는 감각입니다…",
-                   "meta": "어제 18:24 · 자동 번역됨" } ] },
-    { "kind": "routine", "label": "오늘 루틴",
-      "items": [ { "task_key": "antisep", "title": "절개부 소독 · 1회 남았어요",
-                   "body": "실밥 뽑기 전까지 감염을 막는 유일한 방어선이에요…",
-                   "meta": "D+2 · 하루 1회" } ] }
-  ],
-  "unread_count": 1,
-  "policy": "알림은 루틴 시각과 병원 답변 두 가지만 보냅니다."
+  "items": [
+    { "type": "clinic_reply", "title": "김서준 원장님이 답변했어요",
+      "body": "초기 반흔 조직이 자리잡는 과정에서 흔히 느끼는 감각입니다…",
+      "created_at": "…", "unread": true },
+    { "type": "routine", "title": "절개부 소독 · 1회 남았어요",
+      "body": "D+2 · 하루 1회", "unread": false }
+  ]
 }
 ```
+
+`type`은 `clinic_reply` / `routine` 2종 고정입니다. 초안의 `doctor_reply`가 아니라 `clinic_reply`인 게 9장 기준입니다 — 답변 주체가 개인 의사가 아니라 병원이라는 뜻이 담깁니다.
 
 둘 다 파생입니다.
 
@@ -1010,7 +1012,7 @@ URL은 60초 만료 presigned입니다.
                           created_at > surgery.consult_last_read_at)
 ```
 
-`groups[].kind`를 `routine` / `doctor_reply` 2종으로 제한하는 게 명세서 1.2 원칙의 구현입니다. 테이블 `choices`가 하던 방어를 serializer가 대신합니다.
+`items[].type`을 2종으로 제한하는 게 명세서 1.2 원칙의 구현입니다. 테이블 `choices`가 하던 방어를 serializer가 대신합니다.
 
 ### `POST /consult/read`
 

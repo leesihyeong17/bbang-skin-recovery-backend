@@ -10,36 +10,22 @@ from django.utils import timezone
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from config.utils import api_error, t
 
 from .models import Patient
 from .serializers import PatientSerializer
 
-
-def _stage_of(surgery, day: int) -> str:
-    """D+N → "초기 안정" 같은 단계 이름.
-
-    TODO: A가 care/services.py에 stage_of()를 만들면 그걸로 교체하고 여기는 지울 것.
-          지금은 /me 하나만 쓰므로 임시로 둔다.
-    """
-    for s in surgery.procedure_type.stage_map or []:
-        if day <= s["to"]:
-            return t(s["name"], surgery.patient.lang)
-    return ""
-
-
-def _latest_surgery(patient, with_related=False):
-    qs = patient.surgeries.all()
-    if with_related:
-        qs = qs.select_related("clinic", "surgeon", "procedure_type")
-    return qs.order_by("-surgery_date").first()
+from care.services import stage_of
 
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_scope = "login"
 
     def post(self, request):
         code = (request.data.get("patient_code") or "").strip()
@@ -61,7 +47,7 @@ class LoginView(APIView):
             patient.lang_locked_at = timezone.now()
             patient.save(update_fields=["lang", "lang_locked_at"])
 
-        surgery = _latest_surgery(patient)
+        surgery = patient.surgery
         refresh = RefreshToken.for_user(patient)
 
         return Response(
@@ -76,13 +62,30 @@ class LoginView(APIView):
         )
 
 
+class RefreshView(TokenRefreshView):
+    """SimpleJWT 표준 동작 그대로. 에러 형식만 명세 9.0에 맞춘다.
+
+    감싸지 않으면 만료 시 {"detail": ..., "code": "token_not_valid"}가 나가서
+    프론트의 res.error.code 분기가 여기서만 깨진다.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except (InvalidToken, TokenError):
+            return api_error("INVALID_CREDENTIALS", "다시 로그인해 주세요", 401)
+
+
 class MeView(APIView):
     def get(self, request):
         patient = request.user
         lang = patient.lang
         data = {"patient": PatientSerializer(patient).data}
 
-        surgery = _latest_surgery(patient, with_related=True)
+        surgery = patient.surgery
         if surgery is None:
             return Response(data)      # superuser 등 시술이 없는 계정
 
@@ -100,7 +103,7 @@ class MeView(APIView):
             "program_days": surgery.program_days,
             "return_date": surgery.return_date,
             "return_day": surgery.return_day,   # 컬럼이 아니라 @property
-            "stage": _stage_of(surgery, day),
+            "stage": stage_of(surgery, day),
             "care_status": surgery.care_status,
             # 환자가 고칠 수 있는 필드. 프론트가 입력창을 열지 이걸로 판단한다
             "editable_fields": ["return_date"],
