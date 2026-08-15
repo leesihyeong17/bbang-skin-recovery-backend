@@ -10,7 +10,9 @@ from django.utils import timezone
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from config.utils import api_error, t
 
@@ -20,16 +22,10 @@ from .serializers import PatientSerializer
 from care.services import stage_of
 
 
-def _latest_surgery(patient, with_related=False):
-    qs = patient.surgeries.all()
-    if with_related:
-        qs = qs.select_related("clinic", "surgeon", "procedure_type")
-    return qs.order_by("-surgery_date").first()
-
-
 class LoginView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+    throttle_scope = "login"
 
     def post(self, request):
         code = (request.data.get("patient_code") or "").strip()
@@ -51,7 +47,7 @@ class LoginView(APIView):
             patient.lang_locked_at = timezone.now()
             patient.save(update_fields=["lang", "lang_locked_at"])
 
-        surgery = _latest_surgery(patient)
+        surgery = patient.surgery
         refresh = RefreshToken.for_user(patient)
 
         return Response(
@@ -66,13 +62,30 @@ class LoginView(APIView):
         )
 
 
+class RefreshView(TokenRefreshView):
+    """SimpleJWT 표준 동작 그대로. 에러 형식만 명세 9.0에 맞춘다.
+
+    감싸지 않으면 만료 시 {"detail": ..., "code": "token_not_valid"}가 나가서
+    프론트의 res.error.code 분기가 여기서만 깨진다.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except (InvalidToken, TokenError):
+            return api_error("INVALID_CREDENTIALS", "다시 로그인해 주세요", 401)
+
+
 class MeView(APIView):
     def get(self, request):
         patient = request.user
         lang = patient.lang
         data = {"patient": PatientSerializer(patient).data}
 
-        surgery = _latest_surgery(patient, with_related=True)
+        surgery = patient.surgery
         if surgery is None:
             return Response(data)      # superuser 등 시술이 없는 계정
 

@@ -17,7 +17,8 @@ dependencies = [
     "djangorestframework-simplejwt (>=5.5.1,<6.0.0)",
     "django-storages (>=1.14.6,<2.0.0)",
     "boto3 (>=1.43.67,<2.0.0)",
-    "pillow (>=12.3.0,<13.0.0)"
+    "pillow (>=12.3.0,<13.0.0)",
+    "pillow-heif (>=1.5.0,<2.0.0)"
 ]
 
 [tool.poetry]

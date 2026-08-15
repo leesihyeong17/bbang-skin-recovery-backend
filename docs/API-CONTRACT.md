@@ -750,14 +750,16 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 
 ```json
 {
-  "day": 12, "photos": {...},
+  "day": 12, "date": "2026-08-15", "photos": {...},
   "symptoms": [ { "name": "부기", "medical_term": "부기 (edema)", "level": 3 } ],
-  "tasks_done":    [ { "name": "냉찜질", "done_count": 3, "times_per_day": 4 } ],
-  "tasks_missing": [ { "name": "압박 테이핑 교체" } ]
+  "tasks_done":    [ { "name": "냉찜질", "done_count": 4, "times_per_day": 4 } ],
+  "tasks_missing": [ { "name": "압박 테이핑 교체", "done_count": 2, "times_per_day": 3 } ]
 }
 ```
 
 `medical_term`은 **이름만 변환하고 등급은 변환하지 않습니다**(명세서 3.8).
+
+**`tasks_done`은 그날 회차를 다 채운 루틴입니다.** 부분 이행(3회 중 2회)은 `tasks_missing`에 들어가고, 진행도를 보여줄 수 있게 양쪽 다 `done_count` · `times_per_day`를 담습니다. 프론트가 완료 색상을 칠하는 기준이 "전부 완료"이므로 경계를 여기에 맞췄습니다.
 
 #### `POST /reports` — 제출용 · 귀국용 (명세서 3.9)
 
@@ -827,6 +829,8 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 
 **`tag`는 서버가 만듭니다.** 발신자 × 보는 언어 4조합이라 프론트에 두면 틀립니다.
 
+`day`는 `created_at`을 KST로 변환해 파생합니다. `attachments[]`는 `{ "kind": "report"|"checkin", "id": 3, "label": "회복 경과 기록 D+0~D+2" }` 형태이고, `kind: "checkin"`에는 `day`·`date`가 함께 담깁니다. 본문은 `/reports/{id}` 또는 `/records/day`로 따로 조회합니다.
+
 #### `POST /consult/messages`
 
 ```json
@@ -835,14 +839,37 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 
 `attach`는 선택. 명세서의 첨부 3종은 `report_id`(회복 경과 + 복약 이행) + `checkin_id`(오늘 사진 3컷)로 커버됩니다.
 
+`201`로 **방금 만든 메시지 하나를 `GET`과 같은 형식으로** 돌려줍니다. 프론트가 재조회 없이 말풍선을 그릴 수 있습니다.
+
+```json
+{ "id": 4, "sender_type": "patient", "day": 2,
+  "body_original": "運動してもいいですか？", "lang_original": "ja",
+  "body_translated": "운동해도 될까요?", "lang_translated": "ko",
+  "tag": "내 문장 · 日本語 원문",
+  "attachments": [ { "kind": "checkin", "id": 7, "day": 2, "date": "2026-08-05",
+                     "label": "오늘 사진 D+2" } ],
+  "created_at": "..." }
+```
+
+번역은 **저장 시 1회** 수행하고 결과를 보관합니다. 조회할 때마다 번역 API를 부르지 않습니다. 번역에 실패하면 `body_translated`와 `lang_translated`가 빈 문자열로 나가고, 원문만 표시하면 됩니다.
+
+#### `POST /consult/read`
+
+상담 화면에 들어갈 때 호출합니다. 요청 body 없음, `204`.
+
+`Surgery.consult_last_read_at = now()`로 **스레드 전체를 읽음 처리**합니다. `Notification` 테이블이 없어 알림 개별 읽음이 아니라 스레드 단위입니다. `GET /notifications`의 `clinic_reply.unread`가 이 값에서 파생하므로, 이 호출이 없으면 배지가 꺼지지 않습니다.
+
 #### `GET /appointments`
 
 ```json
-{ "items": [ { "id": 1, "day": 5, "date": "2026-08-08", "title": "부목 제거",
-               "kind": "visit", "status": "scheduled" } ] }
+{ "items": [ { "id": 1, "day": 5, "date": "2026-08-08",
+               "scheduled_at": "2026-08-08T10:00:00+09:00",
+               "title": "부목 제거", "kind": "visit", "status": "scheduled" } ] }
 ```
 
-`status`는 `scheduled_at`이 지나면 서버가 `done`으로 계산해서 내려줍니다.
+`scheduled_at`은 KST 오프셋이 붙은 ISO 문자열입니다. 시각까지 필요한 화면을 위해 원본을 함께 내리고, `day`·`date`는 KST 기준으로 파생합니다.
+
+`status`는 `scheduled_at`이 지나면 서버가 `done`으로 계산해서 내려줍니다. **자동 전환은 `scheduled` → `done` 하나뿐입니다.** `missed`는 병원이 명시적으로 넣은 값이므로 덮어쓰지 않습니다.
 
 ---
 
@@ -864,6 +891,10 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 ```
 
 **이 2종만 보냅니다.** 해금 소식 · 마케팅 · 응원 메시지는 만들지 않습니다.
+
+`clinic_reply.unread`는 `ConsultMessage.created_at > Surgery.consult_last_read_at`으로 파생합니다. `consult_last_read_at`이 `null`이면 전부 미읽음이고, 이 값을 갱신하는 건 `POST /consult/read` 하나뿐입니다. 읽은 답변도 목록에는 남고 `unread: false`로만 구분합니다.
+
+`routine` 항목에는 `created_at`이 없고 `unread`는 항상 `false`입니다. 미읽음 배지는 병원 답변에만 붙습니다.
 
 ---
 

@@ -79,7 +79,8 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    #'django.middleware.csrf.CsrfViewMiddleware',
+    # JWT API는 CSRF 면제라 영향 없다. admin 보호 때문에 켜 둔다.
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -147,7 +148,7 @@ STORAGES = {
             "signature_version": "s3v4",     # 서울 리전은 v4 서명
             "default_acl": None,             # 요즘 버킷은 ACL 비활성이 기본
             "querystring_auth": True,        # 만료되는 서명 URL로만 접근
-            "querystring_expire": 60,        # 60초
+            "querystring_expire": 300,       # 5분. 목록 여러 장 스크롤하는 사이 만료되면 안 된다
             "file_overwrite": False,
             # 환자 얼굴 사진이므로 브라우저에 캐시하지 않는다
             "object_parameters": {"CacheControl": "private, max-age=0, no-store"},
@@ -181,7 +182,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# 환자·병원 모두 KST/JST 기준으로 하루를 센다. UTC면 00:00~09:00 KST에
+# timezone.localdate()가 전날을 반환해 D+N이 하루 밀린다. DB는 계속 UTC 저장(USE_TZ).
+TIME_ZONE = 'Asia/Seoul'
 
 USE_I18N = True
 
@@ -219,6 +222,13 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": (
         "rest_framework.renderers.JSONRenderer",
     ),
+    # 비밀번호가 생년월일 8자리라 무차별 대입에 약하다. 로그인만 좁게 막는다.
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.ScopedRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "10/min",
+    },
 }
 
 from datetime import timedelta
