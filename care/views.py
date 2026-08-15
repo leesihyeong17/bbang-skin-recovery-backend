@@ -14,6 +14,8 @@ care/views.py — A 담당 엔드포인트
 계산은 전부 services.py가 합니다. 이 파일은 "요청을 받아 → 서비스 호출 → JSON으로 포장"만
 합니다. 여기서 CareTaskTemplate.objects.filter()를 직접 쓰지 마세요.
 """
+from django.conf import settings
+
 from config.utils import api_error as err
 
 from datetime import date, datetime
@@ -68,6 +70,11 @@ def file_url(field):
     except Exception:
         return None
 
+def resolve_lang(request):
+    """개발 중 언어 대조용. 운영에서는 항상 환자의 확정 언어를 씁니다."""
+    if settings.DEBUG and (q := request.query_params.get("lang")):
+        return q
+    return request.user.lang or DEFAULT_LANG
 
 # ──────────────────────────────────────────────────────────────
 # GET /home — 명세서 3.5
@@ -80,7 +87,7 @@ class HomeView(APIView):
         if s is None:
             return err("ONBOARDING_REQUIRED", "등록된 시술이 없습니다", status.HTTP_403_FORBIDDEN)
 
-        lang = request.user.lang or DEFAULT_LANG
+        lang = resolve_lang(request) or DEFAULT_LANG
         day = resolve_day(request, s)
         ci = care_items(s, day, lang)
 
@@ -186,7 +193,7 @@ class CareItemDetailView(APIView):
         if s is None:
             return err("ONBOARDING_REQUIRED", "등록된 시술이 없습니다", status.HTTP_403_FORBIDDEN)
 
-        lang = request.user.lang or DEFAULT_LANG
+        lang = resolve_lang(request) or DEFAULT_LANG
         day = resolve_day(request, s)
 
         if kind == "rule":
@@ -258,7 +265,7 @@ class ScheduleView(APIView):
         if s is None:
             return err("ONBOARDING_REQUIRED", "등록된 시술이 없습니다", status.HTTP_403_FORBIDDEN)
 
-        lang = request.user.lang or DEFAULT_LANG
+        lang = resolve_lang(request) or DEFAULT_LANG
         events = timeline(s, lang)
 
         markers = [{
@@ -284,7 +291,7 @@ class ScheduleDayView(APIView):
         if s is None:
             return err("ONBOARDING_REQUIRED", "등록된 시술이 없습니다", status.HTTP_403_FORBIDDEN)
 
-        lang = request.user.lang or DEFAULT_LANG
+        lang = resolve_lang(request) or DEFAULT_LANG
         day = resolve_day(request, s)
         ci = care_items(s, day, lang)
         return Response({
@@ -338,7 +345,7 @@ class OnboardingSurgeryView(APIView):
         if s is None:
             return err("ONBOARDING_REQUIRED", "등록된 시술이 없습니다", status.HTTP_403_FORBIDDEN)
 
-        lang = request.user.lang or DEFAULT_LANG
+        lang = resolve_lang(request) or DEFAULT_LANG
         p = request.user
         name = pick(p.name, lang)
         return Response({
@@ -364,7 +371,7 @@ class OnboardingQuestionsView(APIView):
         if s is None:
             return err("ONBOARDING_REQUIRED", "등록된 시술이 없습니다", status.HTTP_403_FORBIDDEN)
 
-        lang = request.user.lang or DEFAULT_LANG
+        lang = resolve_lang(request) or DEFAULT_LANG
         qs = VariableQuestion.objects.filter(procedure_type=s.procedure_type)
         return Response({
             "questions": [{
@@ -436,7 +443,7 @@ class OnboardingCompleteView(APIView):
         s.care_status = Surgery.CareStatus.ACTIVE
         s.save(update_fields=["return_date", "onboarded_at", "care_status"])
 
-        lang = request.user.lang or DEFAULT_LANG
+        lang = resolve_lang(request) or DEFAULT_LANG
         day = s.day_of(date.today())
         ci = care_items(s, day, lang)
         events = timeline(s, lang)
