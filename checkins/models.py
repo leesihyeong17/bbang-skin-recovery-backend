@@ -41,7 +41,7 @@ class Checkin(models.Model):
 class SymptomTerm(models.Model):
     """증상 어휘 마스터 3건. name(환자용)과 medical_term(의료진용)을 나눠 갖는 게 핵심."""
 
-    key = models.CharField(max_length=20, unique=True)            # swelling / pain / bruise
+    key = models.CharField(max_length=20)                         # swelling / pain / bruise
     name = models.JSONField()                                     # 부기 / 腫れ
     medical_term = models.JSONField()                             # 부기 (edema) / 반상출혈 (ecchymosis)
     snomed_code = models.CharField(max_length=20, blank=True)     # IPS 국제표준 대응. MVP는 비워둠
@@ -53,6 +53,7 @@ class SymptomTerm(models.Model):
 
     class Meta:
         db_table = "symptom_term"
+        unique_together = [("procedure_type", "key")]
         ordering = ["order"]
 
     def __str__(self):

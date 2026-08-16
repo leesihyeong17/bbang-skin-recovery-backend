@@ -100,7 +100,7 @@ DB에는 `{"ko": "…", "ja": "…"}` 형태로 저장하지만, **API 응답에
 | `PUT /checkins/{id}/symptoms` | 체크인 2 | 눈금 저장 | P0 |
 | `POST /checkins/{id}/complete` | 체크인 3 | 저장하기 | P0 |
 | `GET /onboarding/status` | 온보딩 STEP 1 | 진입 | P1 |
-| `POST /prescriptions/ocr` | STEP 1-b | 셔터 탭 | P1 |
+| `GET /prescriptions/ocr` | STEP 1-b | 등록된 추출 초안 조회 | P1 |
 | `POST /prescriptions/confirm` | STEP 1-c | `네, 맞아요` | P1 |
 | `GET /onboarding/surgery` | STEP 2 | 진입 | P1 |
 | `GET /onboarding/questions` | STEP 3 | 진입 | P1 |
@@ -133,7 +133,7 @@ DB에는 `{"ko": "…", "ja": "…"}` 형태로 저장하지만, **API 응답에
 | `/prescriptions/{id}/confirm` | `/prescriptions/confirm` | 환자당 처방이 1개(O2O) |
 | `PATCH /me/language` | `POST /auth/login`의 `lang` 필드 | 스플래시에서 언어 고르고 바로 로그인하므로 왕복 1회가 줄어듦 |
 | 로그인 응답 `state: "onboarding_required"` | `care_status: "onboarding"` | `Surgery.care_status` 컬럼과 이름·값이 그대로 일치 |
-| `POST /prescriptions/retake` | `POST /prescriptions/ocr` 재호출 | 확정 전이면 재호출이 곧 재촬영. 상태 하나가 줄어듦 |
+| `POST /prescriptions/retake` | 관리자 import로 새 초안 등록 | 새 초안의 `ocr_id`가 이전 값을 만료시킴 |
 
 ### 만들지 않는 것과 대체 방법
 
@@ -159,7 +159,7 @@ DB에는 `{"ko": "…", "ja": "…"}` 형태로 저장하지만, **API 응답에
 
 STEP 1      GET   /onboarding/status          → 자료 3종 조립 결과 (테이블 조회 아님)
                                                  처방 status: "not_registered"
-  촬영      POST  /prescriptions/ocr          → 5종 추출 · confirmed_at 아직 null
+  조회      GET   /prescriptions/ocr          → 관리자가 등록한 추출 초안 · confirmed_at 아직 null
   확인      POST  /prescriptions/confirm      → 확정 + 원본 사진 삭제
                                                  이후 care_items()가 복약 항목 합성
 
@@ -302,13 +302,14 @@ STEP 3      GET   /onboarding/questions       → 질문 2개 + 귀국일 기본
 
 `prescription.status`: `not_registered` / `ocr_pending` / `extracted` / `confirmed`
 
-### `POST /prescriptions/ocr`
+### `GET /prescriptions/ocr`
 
-`multipart/form-data` · `image` 필드
+병원 콘솔과 실제 OCR을 구현하지 않는 시연 단계에서는 관리자 import가 미리 등록한 환자별
+추출 초안을 조회합니다. 이 요청은 DB를 변경하지 않습니다.
 
 ```json
 {
-  "prescription_id": 7,
+  "ocr_id": "tmp-8f3a...",
   "ocr_status": "done",
   "issued_date": "2026-08-03",
   "timing": "식후",
@@ -317,12 +318,12 @@ STEP 3      GET   /onboarding/questions       → 질문 2개 + 귀국일 기본
   "items": [
     { "seq": 1, "drug_name": "세프카펜피복실염산염정 100mg", "category": "항생제",
       "dose": "1정", "times_per_day": "3회", "days": "6일",
-      "usage": "매 식후 30분 경구 복용", "usage_short": "식후 30분", "is_prn": false },
+      "usage": "매 식후 30분 경구 복용", "is_prn": false },
     { "seq": 5, "drug_name": "아세트아미노펜정 500mg", "category": "진통제",
       "dose": "1~2정", "times_per_day": "필요 시 최대 4회", "days": "4일",
-      "usage": "통증 시 4시간 간격 경구 복용 (돈복)", "usage_short": "통증 시 · 4시간 간격", "is_prn": true }
+      "usage": "통증 시 4시간 간격 경구 복용 (돈복)", "is_prn": true }
   ],
-  "fixed_count": 4,
+  "regular_count": 4,
   "prn_count": 1,
   "not_extracted": ["요양기관기호", "질병분류기호", "면허번호", "교부번호"]
 }
@@ -334,19 +335,13 @@ STEP 3      GET   /onboarding/questions       → 질문 2개 + 귀국일 기본
 
 ### `POST /prescriptions/confirm`
 
-Body 없음. 환자 더블체크 완료. `Prescription`이 `Surgery`와 O2O라 `{id}`가 필요 없습니다.
+환자가 확인 화면에서 받은 `ocr_id`만 전송합니다. 처방 기본값과 약 목록은 서버에 저장된
+관리자 import 초안을 그대로 사용합니다.
+`Prescription`이 `Surgery`와 O2O라 URL에 `{id}`는 필요 없습니다.
 
 ```json
 {
-  "confirmed": true,
-  "medication_task": {
-    "key": "medication",
-    "name": "처방약 4종",
-    "day_from": 0, "day_to": 5,
-    "times_per_day": 3,
-    "timing": "식후",
-    "summary": "세프카펜피복실정 외 3종 · 하루 3회 · 6일분 · 필요 시 1종"
-  }
+  "ocr_id": "tmp-8f3a..."
 }
 ```
 
@@ -358,7 +353,8 @@ Body 없음. 환자 더블체크 완료. `Prescription`이 `Surgery`와 O2O라 `
 
 ⚠️ **`PUT /task-logs`의 `task_key` 검증 목록에 `medication`을 반드시 포함하세요.** 빠지면 복약 체크가 `UNKNOWN_TASK_KEY`로 튕깁니다. `is_prn=True` 약은 개수에서 제외합니다.
 
-재촬영은 별도 엔드포인트가 아니라 **`POST /prescriptions/ocr` 재호출**입니다. `confirm` 전이면 이전 `ocr_id`가 폐기되고 새 키가 나갑니다. 초안의 `POST /prescriptions/retake`는 폐기했습니다 — 서버에 "재촬영 대기" 상태를 두면 저장하지 않는다는 원칙과 어긋납니다.
+새 추출 결과는 관리자 import로 등록합니다. 확정 전 새 초안이 들어오면 이전 `ocr_id`가
+폐기되고, 확정된 처방은 import로 덮어쓸 수 없습니다.
 
 ### `GET /onboarding/surgery` — STEP 2 시술 확인
 
