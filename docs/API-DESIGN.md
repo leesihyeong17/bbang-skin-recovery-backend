@@ -335,17 +335,13 @@ STEP 3      GET   /onboarding/questions       → 질문 2개 + 귀국일 기본
 
 ### `POST /prescriptions/confirm`
 
-환자가 확인 화면에서 수정한 `ocr_id`, 처방 기본값, 약 목록 전체를 전송합니다.
+환자가 확인 화면에서 받은 `ocr_id`만 전송합니다. 처방 기본값과 약 목록은 서버에 저장된
+관리자 import 초안을 그대로 사용합니다.
 `Prescription`이 `Surgery`와 O2O라 URL에 `{id}`는 필요 없습니다.
 
 ```json
 {
-  "ocr_id": "tmp-8f3a...",
-  "issued_date": "2026-08-03",
-  "timing": "식후",
-  "per_day": 3,
-  "total_days": 6,
-  "items": []
+  "ocr_id": "tmp-8f3a..."
 }
 ```
 

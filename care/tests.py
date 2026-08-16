@@ -189,26 +189,22 @@ class PrescriptionAdminDraftFlowTests(APITestCase):
         self.patient = Patient.objects.get(patient_code="IMPORT-PATIENT-1")
         self.client.force_authenticate(self.patient)
 
-    def test_patient_reads_admin_draft_and_confirms_edited_values(self):
+    def test_patient_reads_and_confirms_admin_draft(self):
         draft_response = self.client.get(self.ocr_url)
         self.assertEqual(draft_response.status_code, 200)
         self.assertEqual(draft_response.data["regular_count"], 1)
         self.assertEqual(draft_response.data["prn_count"], 1)
 
         draft = draft_response.data
-        items = deepcopy(draft["items"])
-        items[0]["drug_name"] = "환자가 확인한 항생제"
-        response = self.client.post(self.confirm_url, {
-            "ocr_id": draft["ocr_id"], "issued_date": draft["issued_date"],
-            "timing": "식후 30분", "per_day": 2,
-            "total_days": draft["total_days"], "items": items,
-        }, format="json")
+        response = self.client.post(
+            self.confirm_url, {"ocr_id": draft["ocr_id"]}, format="json"
+        )
         self.assertEqual(response.status_code, 201, response.data)
         prescription = Prescription.objects.get(surgery__patient=self.patient)
         self.assertIsNotNone(prescription.confirmed_at)
-        self.assertEqual(prescription.per_day, 2)
+        self.assertEqual(prescription.per_day, 3)
         self.assertEqual(prescription.items.count(), 2)
-        self.assertEqual(prescription.items.get(seq=1).drug_name, "환자가 확인한 항생제")
+        self.assertEqual(prescription.items.get(seq=1).drug_name, "테스트 항생제")
         status_response = self.client.get("/api/v1/onboarding/status")
         self.assertTrue(status_response.data["can_proceed"])
 
@@ -218,11 +214,8 @@ class PrescriptionAdminDraftFlowTests(APITestCase):
         self.client.force_authenticate(admin)
         self.client.post(self.import_url, import_payload(), format="json")
         self.client.force_authenticate(self.patient)
-        current = self.client.get(self.ocr_url).data
-        response = self.client.post(self.confirm_url, {
-            "ocr_id": old_id, "issued_date": current["issued_date"],
-            "timing": current["timing"], "per_day": current["per_day"],
-            "total_days": current["total_days"], "items": current["items"],
-        }, format="json")
+        response = self.client.post(
+            self.confirm_url, {"ocr_id": old_id}, format="json"
+        )
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data["error"]["code"], "OCR_DRAFT_EXPIRED")

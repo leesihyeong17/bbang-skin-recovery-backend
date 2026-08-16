@@ -37,7 +37,8 @@ from protocols.models import (ActivityRuleTemplate, CareTaskTemplate,
                               VariableQuestion)
 
 from .import_serializers import (ClinicDataImportSerializer,
-                                 PrescriptionConfirmSerializer)
+                                 PrescriptionConfirmSerializer,
+                                 PrescriptionDraftImportSerializer)
 from .import_service import import_clinic_data
 from .models import (Appointment, Prescription, PrescriptionItem, Surgery,
                      VariableAnswer)
@@ -149,7 +150,7 @@ class PrescriptionOCRView(APIView):
 
 
 class PrescriptionConfirmView(APIView):
-    """환자가 확인 화면에서 수정한 전체 값을 확정 저장합니다."""
+    """환자가 화면에서 확인한 서버 보관 초안을 그대로 확정합니다."""
 
     @transaction.atomic
     def post(self, request):
@@ -185,10 +186,19 @@ class PrescriptionConfirmView(APIView):
                 status.HTTP_409_CONFLICT,
             )
 
-        prescription.issued_date = data.get("issued_date")
-        prescription.timing = data["timing"]
-        prescription.per_day = data["per_day"]
-        prescription.total_days = data["total_days"]
+        draft_serializer = PrescriptionDraftImportSerializer(data=raw.get("draft"))
+        if not draft_serializer.is_valid():
+            return err(
+                "OCR_DRAFT_INVALID",
+                "저장된 처방전 추출 결과가 올바르지 않습니다",
+                status.HTTP_409_CONFLICT,
+            )
+        draft = draft_serializer.validated_data
+
+        prescription.issued_date = draft.get("issued_date")
+        prescription.timing = draft["timing"]
+        prescription.per_day = draft["per_day"]
+        prescription.total_days = draft["total_days"]
         prescription.ocr_status = Prescription.OcrStatus.DONE
         prescription.confirmed_at = timezone.now()
 
@@ -201,15 +211,15 @@ class PrescriptionConfirmView(APIView):
         prescription.items.all().delete()
         PrescriptionItem.objects.bulk_create([
             PrescriptionItem(prescription=prescription, **item)
-            for item in data["items"]
+            for item in draft["items"]
         ])
 
-        regular_count = sum(not item["is_prn"] for item in data["items"])
+        regular_count = sum(not item["is_prn"] for item in draft["items"])
         return Response({
             "id": prescription.id,
             "confirmed_at": prescription.confirmed_at,
             "regular_count": regular_count,
-            "prn_count": len(data["items"]) - regular_count,
+            "prn_count": len(draft["items"]) - regular_count,
         }, status=status.HTTP_201_CREATED)
 
 # ──────────────────────────────────────────────────────────────

@@ -240,5 +240,5 @@ class ClinicDataImportSerializer(serializers.Serializer):
         return attrs
 
 
-class PrescriptionConfirmSerializer(PrescriptionDraftImportSerializer):
+class PrescriptionConfirmSerializer(serializers.Serializer):
     ocr_id = serializers.CharField(max_length=50)

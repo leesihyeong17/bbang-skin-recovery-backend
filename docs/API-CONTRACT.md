@@ -499,10 +499,11 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 
 #### `POST /prescriptions/confirm`
 
-확인 화면에서 수정한 값을 그대로 받아 저장합니다.
+확인 화면에서 받은 `ocr_id`만 전송합니다. 서버는 관리자 import로 저장해 둔 초안을 그대로
+확정하므로 환자가 약 내용을 다시 보내지 않습니다.
 
 ```json
-{ "ocr_id": "tmp-8f3a...", "timing": "식후", "per_day": 3, "total_days": 6, "items": [ ... ] }
+{ "ocr_id": "tmp-8f3a..." }
 ```
 
 `201` → `{ "id": 1, "confirmed_at": "...", "regular_count": 4, "prn_count": 1 }`
