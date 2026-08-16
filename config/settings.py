@@ -143,7 +143,7 @@ STORAGES = {
     "s3": {
         "BACKEND": "storages.backends.s3.S3Storage",
         "OPTIONS": {
-            "bucket_name": "likelion-aftercare-s3",
+            "bucket_name": get_secret("S3_BUCKET"),
             "region_name": "ap-northeast-2",
             "signature_version": "s3v4",     # 서울 리전은 v4 서명
             "default_acl": None,             # 요즘 버킷은 ACL 비활성이 기본
@@ -205,6 +205,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [ 
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:5173"
 ]
 
 # ============================================================
