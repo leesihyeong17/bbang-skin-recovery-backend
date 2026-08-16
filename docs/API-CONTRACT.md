@@ -473,9 +473,11 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 
 `can_proceed`가 `false`면 다음 단계 버튼 비활성(명세서: 처방 없으면 복약 루틴을 만들 수 없어 진행 차단).
 
-#### `POST /prescriptions/ocr` — 명세서 3.3
+#### `GET /prescriptions/ocr` — 명세서 3.3
 
-`multipart/form-data` · `image` 필드. **저장하지 않고 추출 결과만 반환합니다.**
+관리자 import가 이 환자에게 등록한 미확정 처방전 추출 초안을 반환합니다. 현재 시연에서는
+서버가 OCR을 실행하거나 이미지를 받지 않습니다. 초안이 없으면 `OCR_DRAFT_NOT_FOUND`,
+이미 확정했으면 `PRESCRIPTION_ALREADY_CONFIRMED`를 반환합니다.
 
 ```json
 {
@@ -506,6 +508,13 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 `201` → `{ "id": 1, "confirmed_at": "...", "regular_count": 4, "prn_count": 1 }`
 
 > **처방전 원본 사진은 저장하지 않습니다.** 추출이 끝나면 임시 파일을 삭제합니다(명세서 4장).
+
+#### `POST /admin/clinic-data/import` — 관리자 대용량 입력
+
+병원 콘솔 대신 AI가 구조화했다고 가정한 큰 JSON을 관리자 토큰으로 입력합니다. `clinic`,
+`protocols`, `patients`는 선택적으로 보낼 수 있고 환자의 `prescription_draft`도 함께 등록할
+수 있습니다. 자연키 기준 upsert이며 `dry_run: true`이면 검증 후 전체 롤백합니다. 상세
+계약은 `docs/ADMIN-IMPORT.md`를 따릅니다.
 
 #### `GET /onboarding/surgery` — STEP 2 시술 확인 (읽기 전용 5행)
 

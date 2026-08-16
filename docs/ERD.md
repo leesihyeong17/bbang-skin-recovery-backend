@@ -1023,8 +1023,8 @@ UNIQUE(`surgery`, `question`)
 그래서 2단계입니다.
 
 ```
-POST /prescriptions/ocr      → 추출만. confirmed_at = null. 복약 체크 안 생김
-                                환자가 확인 화면에서 원본과 대조
+관리자 clinic-data import   → AI 추출 초안을 ocr_raw에 등록. confirmed_at = null
+GET /prescriptions/ocr      → 환자가 자신의 미확정 초안을 조회
 POST /prescriptions/confirm  → confirmed_at 기록. 이때 복약 항목이 care_items()에 합성됨
                                 동시에 source_image 삭제 (D5)
 ```
@@ -1095,7 +1095,7 @@ INDEX(`surgery`, `date`) — 범위 조회가 대부분.
 
 | 컬럼 | 타입 | 의미 | 예 |
 |---|---|---|---|
-| `key` | Char(20) unique | | `swelling` `pain` `bruise` |
+| `key` | Char(20), 시술과 복합 unique | | `swelling` `pain` `bruise` |
 | `name` | JSON | 환자가 보는 이름 | `부기` / `腫れ` |
 | `medical_term` | JSON | **의료진용 용어** | `부기 (edema)` / `반상출혈 (ecchymosis)` |
 | `snomed_code` | Char(20) null | 국제 표준 코드 | `65124004` |

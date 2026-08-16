@@ -10,6 +10,9 @@ care/views.py — A 담당 엔드포인트
     GET  /api/v1/onboarding/surgery
     GET  /api/v1/onboarding/questions
     POST /api/v1/onboarding/complete
+    POST /api/v1/admin/clinic-data/import
+    GET  /api/v1/prescriptions/ocr
+    POST /api/v1/prescriptions/confirm
 
 계산은 전부 services.py가 합니다. 이 파일은 "요청을 받아 → 서비스 호출 → JSON으로 포장"만
 합니다. 여기서 CareTaskTemplate.objects.filter()를 직접 쓰지 마세요.
@@ -22,6 +25,9 @@ from datetime import date, datetime
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import serializers
+from rest_framework.permissions import IsAdminUser
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -30,7 +36,11 @@ from checkins.models import Checkin
 from protocols.models import (ActivityRuleTemplate, CareTaskTemplate,
                               VariableQuestion)
 
-from .models import Appointment, Surgery, VariableAnswer
+from .import_serializers import (ClinicDataImportSerializer,
+                                 PrescriptionConfirmSerializer)
+from .import_service import import_clinic_data
+from .models import (Appointment, Prescription, PrescriptionItem, Surgery,
+                     VariableAnswer)
 from .services import (DEFAULT_LANG, care_items, completion, next_unlock, pick,
                        stage_of, timeline, validate_task_key, _fill,
                        _phases_with_from, _medication_task)
@@ -75,6 +85,132 @@ def resolve_lang(request):
     if settings.DEBUG and (q := request.query_params.get("lang")):
         return q
     return request.user.lang or DEFAULT_LANG
+
+
+def validation_error(detail):
+    """Return serializer/service validation errors in the common envelope."""
+    return err("VALIDATION_ERROR", str(detail), status.HTTP_400_BAD_REQUEST)
+
+
+# ──────────────────────────────────────────────────────────────
+# 관리자 대용량 데이터 입력
+# ──────────────────────────────────────────────────────────────
+class ClinicDataImportView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        serializer = ClinicDataImportSerializer(data=request.data)
+        if not serializer.is_valid():
+            return validation_error(serializer.errors)
+        try:
+            result = import_clinic_data(serializer.validated_data)
+        except serializers.ValidationError as exc:
+            return validation_error(exc.detail)
+        return Response(result, status=status.HTTP_200_OK if result["dry_run"] else status.HTTP_201_CREATED)
+
+
+# ──────────────────────────────────────────────────────────────
+# 처방전 추출 초안 조회·확정
+# ──────────────────────────────────────────────────────────────
+class PrescriptionOCRView(APIView):
+    """관리자 import가 등록한 이 환자의 미확정 OCR 초안을 반환합니다."""
+
+    def get(self, request):
+        s = get_surgery(request)
+        if s is None:
+            return err("ONBOARDING_REQUIRED", "등록된 시술이 없습니다", status.HTTP_403_FORBIDDEN)
+
+        prescription = Prescription.objects.filter(surgery=s).first()
+        if prescription is None or not (prescription.ocr_raw or {}).get("draft"):
+            return err(
+                "OCR_DRAFT_NOT_FOUND",
+                "등록된 처방전 추출 결과가 없습니다",
+                status.HTTP_404_NOT_FOUND,
+            )
+        if prescription.confirmed_at:
+            return err(
+                "PRESCRIPTION_ALREADY_CONFIRMED",
+                "이미 확정한 처방전입니다",
+                status.HTTP_409_CONFLICT,
+            )
+
+        raw = prescription.ocr_raw
+        draft = raw["draft"]
+        items = draft.get("items", [])
+        regular_count = sum(not item.get("is_prn", False) for item in items)
+        return Response({
+            "ocr_id": raw["ocr_id"],
+            "ocr_status": prescription.ocr_status,
+            **draft,
+            "regular_count": regular_count,
+            "prn_count": len(items) - regular_count,
+            "not_extracted": ["요양기관기호", "질병분류기호", "면허번호", "교부번호"],
+        })
+
+
+class PrescriptionConfirmView(APIView):
+    """환자가 확인 화면에서 수정한 전체 값을 확정 저장합니다."""
+
+    @transaction.atomic
+    def post(self, request):
+        s = get_surgery(request)
+        if s is None:
+            return err("ONBOARDING_REQUIRED", "등록된 시술이 없습니다", status.HTTP_403_FORBIDDEN)
+
+        serializer = PrescriptionConfirmSerializer(data=request.data)
+        if not serializer.is_valid():
+            return validation_error(serializer.errors)
+        data = serializer.validated_data
+
+        try:
+            prescription = Prescription.objects.select_for_update().get(surgery=s)
+        except Prescription.DoesNotExist:
+            return err(
+                "OCR_DRAFT_NOT_FOUND",
+                "등록된 처방전 추출 결과가 없습니다",
+                status.HTTP_404_NOT_FOUND,
+            )
+
+        raw = prescription.ocr_raw or {}
+        if prescription.confirmed_at:
+            return err(
+                "PRESCRIPTION_ALREADY_CONFIRMED",
+                "이미 확정한 처방전입니다",
+                status.HTTP_409_CONFLICT,
+            )
+        if not raw.get("ocr_id") or raw["ocr_id"] != data["ocr_id"]:
+            return err(
+                "OCR_DRAFT_EXPIRED",
+                "처방전 추출 결과가 갱신되었습니다. 다시 확인해 주세요",
+                status.HTTP_409_CONFLICT,
+            )
+
+        prescription.issued_date = data.get("issued_date")
+        prescription.timing = data["timing"]
+        prescription.per_day = data["per_day"]
+        prescription.total_days = data["total_days"]
+        prescription.ocr_status = Prescription.OcrStatus.DONE
+        prescription.confirmed_at = timezone.now()
+
+        # 실제 OCR에서 임시 원본을 쓰게 되더라도 확정 이후에는 보관하지 않습니다.
+        if prescription.source_image:
+            prescription.source_image.delete(save=False)
+            prescription.source_image = ""
+        prescription.save()
+
+        prescription.items.all().delete()
+        PrescriptionItem.objects.bulk_create([
+            PrescriptionItem(prescription=prescription, **item)
+            for item in data["items"]
+        ])
+
+        regular_count = sum(not item["is_prn"] for item in data["items"])
+        return Response({
+            "id": prescription.id,
+            "confirmed_at": prescription.confirmed_at,
+            "regular_count": regular_count,
+            "prn_count": len(data["items"]) - regular_count,
+        }, status=status.HTTP_201_CREATED)
 
 # ──────────────────────────────────────────────────────────────
 # GET /home — 명세서 3.5
