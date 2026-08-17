@@ -10,12 +10,21 @@ from care.models import Appointment
 from care.services import completion
 from config.utils import api_error, t
 
-from .builder import build_body
+from .builder import build_body, build_repatriation_body
 from .models import RecoveryReport
+from .polish import PROMPT_VERSION, polish_body
 
 DISCLAIMER = {
     "ko": "본 문서는 환자 자가 보고 기반이며 진단서가 아닙니다.",
     "ja": "本書は患者の自己申告に基づくものであり、診断書ではありません。",
+}
+
+# 제출용은 매번 새로 만드는 문서가 아니라 최근 7일이 계속 갱신되는 위클리 리포트다.
+WEEKLY_DAYS = 7
+
+TITLE = {
+    RecoveryReport.Kind.SUBMISSION: {"ko": "위클리 리포트", "ja": "ウィークリーレポート"},
+    RecoveryReport.Kind.REPATRIATION: {"ko": "귀국용 요약", "ja": "帰国用サマリー"},
 }
 
 
@@ -60,6 +69,7 @@ def _payload(report):
     return {
         "id": report.id,
         "kind": report.kind,
+        "title": t(TITLE.get(report.kind, {}), report.lang),
         "lang": report.lang,
         "day_from": report.day_from,
         "day_to": report.day_to,
@@ -80,9 +90,18 @@ class ReportListView(APIView):
         if kind not in dict(RecoveryReport.Kind.choices):
             return api_error("VALIDATION_ERROR", "kind는 submission 또는 repatriation입니다")
 
+        today_day = surgery.day_of(timezone.localdate())
+
+        # 위클리 리포트는 구간을 프론트가 정하지 않는다. 안 보내면 최근 7일.
+        # 귀국용은 전체 기간이 기본이다 — 현지 의료진이 처음 보는 문서라서.
+        if kind == RecoveryReport.Kind.SUBMISSION:
+            default_to, default_from = today_day, max(0, today_day - WEEKLY_DAYS + 1)
+        else:
+            default_to, default_from = today_day, 0
+
         try:
-            day_from = int(request.data.get("day_from", 0))
-            day_to = int(request.data.get("day_to"))
+            day_from = int(request.data.get("day_from", default_from))
+            day_to = int(request.data.get("day_to", default_to))
         except (TypeError, ValueError):
             return api_error("VALIDATION_ERROR", "day_from과 day_to는 숫자여야 합니다")
 
@@ -93,9 +112,7 @@ class ReportListView(APIView):
             )
 
         # 미래를 담으면 completion()의 분모에 오지 않은 날이 들어가 완주율이 실제보다
-        # 낮게 나가고, care_adherence가 미래 루틴을 미이행으로 기록한다.
-        # 병원에 내는 문서라 사실이 아닌 줄이 붙으면 안 된다.
-        today_day = surgery.day_of(timezone.localdate())
+        # 낮게 나간다. 병원에 내는 문서라 사실이 아닌 줄이 붙으면 안 된다.
         if day_to > today_day:
             return api_error("VALIDATION_ERROR", "아직 오지 않은 날짜는 담을 수 없습니다")
 
@@ -121,14 +138,25 @@ class ReportListView(APIView):
         if existing:
             return Response(_payload(existing), status=status.HTTP_200_OK)
 
+        # 독자가 다르면 문서도 다르다. 위클리는 증상 변화, 귀국용은 시술 개요와
+        # 남은 금기가 본문이다(API-DESIGN 843행).
+        if kind == RecoveryReport.Kind.REPATRIATION:
+            body = build_repatriation_body(surgery, day_from, day_to, lang)
+        else:
+            body = build_body(surgery, day_from, day_to, lang)
+
+        body, ai_model = polish_body(body, lang)
+
         report = RecoveryReport.objects.create(
             surgery=surgery,
             kind=kind,
             lang=lang,
             day_from=day_from,
             day_to=day_to,
-            body=build_body(surgery, day_from, day_to, lang),
+            body=body,
             meta=_meta(surgery, day_from, day_to, lang),
+            ai_model=ai_model,
+            ai_prompt_version=PROMPT_VERSION if ai_model else "",
         )
         return Response(_payload(report), status=status.HTTP_201_CREATED)
 
