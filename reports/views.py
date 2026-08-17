@@ -6,7 +6,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from datetime import datetime, time
 
-from care.models import Appointment
 from care.services import completion
 from config.utils import api_error, t
 
@@ -16,10 +15,21 @@ from .builder import build_body, build_repatriation_body, routine_rates
 from .models import RecoveryReport
 from .polish import PROMPT_VERSION, polish_body
 
-DISCLAIMER = {
-    "ko": "본 문서는 환자 자가 보고 기반이며 진단서가 아닙니다.",
-    "ja": "本書は患者の自己申告に基づくものであり、診断書ではありません。",
-}
+# 샘플 PDF 하단 3줄. 문서 성격 · 원본 보관 · 판정하지 않음을 각각 밝힌다.
+DISCLAIMERS = [
+    {
+        "ko": "본 자료는 환자가 입력한 체크인 기록과 자가관리 이행 내역을 자동으로 정리한 참고 자료입니다.",
+        "ja": "本資料は患者が入力したチェックイン記録と自己管理の実施内容を自動で整理した参考資料です。",
+    },
+    {
+        "ko": "환자가 입력한 자료는 원본 그대로 보관되며, 의료기관에 함께 제공됩니다.",
+        "ja": "患者が入力した資料は原本のまま保管され、医療機関にも提供されます。",
+    },
+    {
+        "ko": "본 자료는 의료진의 진단이나 의학적 소견을 대신하지 않습니다. 증상의 중증도나 정상·이상 여부를 자동으로 판단하지 않습니다.",
+        "ja": "本資料は医療者の診断や医学的所見に代わるものではありません。症状の重症度や正常・異常の判定は行いません。",
+    },
+]
 
 # 제출용은 매번 새로 만드는 문서가 아니라 최근 7일이 계속 갱신되는 위클리 리포트다.
 WEEKLY_DAYS = 7
@@ -77,21 +87,11 @@ def _meta(surgery, day_from, day_to, lang):
             return None
         return round(current[key] - previous[key], 3)
 
-    now = timezone.now()
-    # 계약 794행: Appointment에서 파생한다
-    confirmed = (
-        surgery.appointments.filter(scheduled_at__lte=now)
-        .exclude(status=Appointment.Status.MISSED)
-        .order_by("-scheduled_at")
-        .first()
-    )
-    upcoming = (
-        surgery.appointments.filter(
-            scheduled_at__gt=now, status=Appointment.Status.SCHEDULED
-        )
-        .order_by("scheduled_at")
-        .first()
-    )
+    # confirmed_at / next_confirm_at은 뺐다(2026-08-17 결정).
+    # "병원이 이 기록을 확인했다"를 Appointment 내원 이력으로 근사하려 했는데,
+    # 병원 스태프 화면이 없어 missed를 찍을 주체가 없다. 안 간 내원도 확인으로
+    # 잡히므로 사실이 아닌 이력이 병원 제출 문서에 남는다.
+    # 예약 일정 자체는 GET /appointments에 그대로 있다.
 
     return {
         "checkin_count": current["checkin_count"],
@@ -109,8 +109,6 @@ def _meta(surgery, day_from, day_to, lang):
         },
         "procedure": t(surgery.procedure_type.name, lang),
         "clinic": t(surgery.clinic.name, lang),
-        "confirmed_at": confirmed and timezone.localtime(confirmed.scheduled_at).date().isoformat(),
-        "next_confirm_at": upcoming and timezone.localtime(upcoming.scheduled_at).date().isoformat(),
     }
 
 
@@ -124,7 +122,12 @@ def _payload(report):
         "day_to": report.day_to,
         "meta": report.meta,
         "body": report.body,
-        "disclaimer": t(DISCLAIMER, report.lang),
+        # 문구는 저장하지 않는다. 코드 상수라 고치면 과거 리포트에도 반영된다.
+        "disclaimers": [t(d, report.lang) for d in DISCLAIMERS],
+        # 어느 모델·프롬프트로 만든 문서인지. 비어 있으면 AI를 쓰지 않았다는 뜻이다
+        # (API-DESIGN 778행 "재현과 감사").
+        "ai_model": report.ai_model,
+        "ai_prompt_version": report.ai_prompt_version,
         "generated_at": report.generated_at,
     }
 
@@ -187,12 +190,16 @@ class ReportListView(APIView):
         if existing:
             return Response(_payload(existing), status=status.HTTP_200_OK)
 
+        # meta를 먼저 만든다. weekly_summary가 이행률 이동을 문장에 넣으려면
+        # 같은 숫자를 봐야 한다 — 따로 계산하면 본문과 카드가 어긋난다.
+        meta = _meta(surgery, day_from, day_to, lang)
+
         # 독자가 다르면 문서도 다르다. 위클리는 증상 변화, 귀국용은 시술 개요와
         # 남은 금기가 본문이다(API-DESIGN 843행).
         if kind == RecoveryReport.Kind.REPATRIATION:
             body = build_repatriation_body(surgery, day_from, day_to, lang)
         else:
-            body = build_body(surgery, day_from, day_to, lang)
+            body = build_body(surgery, day_from, day_to, lang, meta)
 
         body, ai_model = polish_body(body, lang)
 
@@ -203,7 +210,7 @@ class ReportListView(APIView):
             day_from=day_from,
             day_to=day_to,
             body=body,
-            meta=_meta(surgery, day_from, day_to, lang),
+            meta=meta,
             ai_model=ai_model,
             ai_prompt_version=PROMPT_VERSION if ai_model else "",
         )

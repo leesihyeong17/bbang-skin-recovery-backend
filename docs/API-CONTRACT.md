@@ -816,10 +816,17 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
                   "window_completion_rate": 0.868, "completion_rate": 0.882 },
     "delta": { "checkin_count": -2, "photo_count": -3,
                "window_completion_rate": -0.442, "completion_rate": -0.158 },
-    "procedure": "코성형 (융비술)", "clinic": "서울 N성형외과의원",
-    "confirmed_at": "2026-08-10", "next_confirm_at": "2026-09-02"
+    "procedure": "코성형 (융비술)", "clinic": "서울 N성형외과의원"
   },
   "body": {
+    "overview": [
+      { "kind": "info", "text": "시술: 코성형 (융비술)" },
+      { "kind": "info", "text": "상세: 실리콘 보형물 삽입 + 자가진피 비주 연장 · 1회차" },
+      { "kind": "info", "text": "시술일: 2026-08-03 / 현재 D+14" },
+      { "kind": "info", "text": "시술 기관: 서울 N성형외과의원 +82-2-000-0000" },
+      { "kind": "info", "text": "담당의: KIM SEOJUN" },
+      { "kind": "info", "text": "환자: 사토 유이 · NR-2608-0417" }
+    ],
     "checkin_days": [
       { "day": 8, "date": "2026-08-11", "has_checkin": true, "completed": true, "is_today": false },
       { "day": 14, "date": "2026-08-17", "has_checkin": false, "completed": false, "is_today": true }
@@ -833,6 +840,11 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
       { "key": "sleep45", "name": "상체 45° 수면", "rate": 0.833,
         "done": 5, "required": 6, "day_from": 0, "day_to": 28, "ended": false }
     ],
+    "weekly_summary": [
+      { "kind": "info", "text": "이전 7일 대비 낮게 기록: 부기 · 통증 · 멍 (멍 -63%로 변화 폭이 가장 큼)" },
+      { "kind": "part", "text": "가장 낮은 항목: 온찜질 17% (1/6회) 전체 이행률은 87%에서 50%로 감소했습니다." },
+      { "kind": "info", "text": "체크인은 7일 중 6일 기록되었습니다. D+13 기록이 비어 있습니다." }
+    ],
     "events": [ { "kind": "info", "text": "D+14 — 귀국 예정" } ],
     "next_week": [
       { "kind": "info", "text": "D+15 — 운동 — 가벼운 산책 · 스트레칭까지",
@@ -841,10 +853,24 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
         "key": "tape", "type": "routine", "day_to": 28, "rate": 0.333 }
     ]
   },
-  "disclaimer": "본 문서는 환자 자가 보고 기반이며 진단서가 아닙니다.",
+  "disclaimers": [
+    "본 자료는 환자가 입력한 체크인 기록과 자가관리 이행 내역을 자동으로 정리한 참고 자료입니다.",
+    "환자가 입력한 자료는 원본 그대로 보관되며, 의료기관에 함께 제공됩니다.",
+    "본 자료는 의료진의 진단이나 의학적 소견을 대신하지 않습니다. 증상의 중증도나 정상·이상 여부를 자동으로 판단하지 않습니다."
+  ],
+  "ai_model": "openai:gpt-4o-mini",
+  "ai_prompt_version": "polish-v1",
   "generated_at": "2026-08-17T11:40:00+09:00"
 }
 ```
+
+⚠️ **`disclaimer`(문자열) → `disclaimers`(배열 3개)로 바뀌었습니다.** 이름과 타입이 동시에 바뀐 유일한 항목입니다. 문서 성격 · 원본 보관 · 판정하지 않음을 각각 밝히는 3줄이고, 그대로 순서대로 출력하면 됩니다.
+
+`body.overview`는 **위클리와 귀국용이 같은 형식**입니다. 의료기관에 제출하는 문서라 "누가 무슨 수술을 받았는지"가 첫 블록에 있습니다.
+
+`body.weekly_summary`는 3문단이고 **주제가 고정**입니다 — ① 증상 변화 ② 이행률 ③ 체크인 성실도. 매주 같은 자리에 같은 종류의 문장이 오므로 레이아웃이 흔들리지 않습니다. 규칙 기반으로 만들고 AI가 문체만 다듬습니다.
+
+`ai_model`이 빈 문자열이면 AI를 쓰지 않은 문서입니다. 어느 모델·프롬프트로 만들었는지 추적할 수 있게 함께 내려줍니다.
 
 **`meta`의 두 이행률은 기준이 다릅니다.**
 
@@ -890,7 +916,7 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
       "patient_story": ["course"]
     }
   },
-  "disclaimer": "..."
+  "disclaimers": [ "...", "...", "..." ]
 }
 ```
 
@@ -910,11 +936,23 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 
 증상이 이전 구간보다 높게 기록되면 `kind`가 `part`입니다. **"더 높게 기록"이라는 관찰 서술이지 "악화"가 아닙니다.** `호전` `악화` 어휘는 쓰지 않습니다.
 
-`meta.confirmed_at` / `next_confirm_at`은 **`Appointment`에서 파생합니다** — 가장 최근 `done` 예약일 / 가장 가까운 `scheduled` 예약일.
+**의료기관 확인 이력(`confirmed_at` / `next_confirm_at`)은 넣지 않습니다**(2026-08-17 결정). "병원이 이 기록을 확인했다"를 `Appointment` 내원 이력으로 근사하려 했지만, 병원 스태프 화면이 없어 `missed`를 찍을 주체가 없습니다. 안 간 내원도 확인으로 잡혀 사실이 아닌 이력이 제출 문서에 남습니다. 예약 일정은 `GET /appointments`에 그대로 있습니다.
 
 `body`와 `meta`는 **생성 시점 스냅샷**입니다. 이후 체크인이 바뀌어도 이미 만든 리포트는 변하지 않습니다. 병원에 전달한 문서가 나중에 달라지면 안 되기 때문입니다.
 
 > **생성 전략:** 규칙 기반 로직으로 문장을 먼저 만들고, AI는 다듬기만 합니다. AI 호출이 실패하거나 결과가 검사를 통과하지 못하면 원문이 그대로 나갑니다. `ai_model`이 비어 있으면 AI를 쓰지 않은 문서입니다.
+
+다듬은 문장은 **줄 단위로 5가지 검사**를 통과해야 반영됩니다. 하나라도 걸리면 그 줄만 규칙 문장으로 되돌아갑니다.
+
+| 검사 | 막는 것 |
+|---|---|
+| 금지어 | `호전` `악화` `정상` `위험` 등 판정·평가 어휘 |
+| 길이 상한 | 대량 덧붙임 |
+| 문장 개수 | 격려·조언 추가 (`힘내세요` 같은 문장이 붙는 경로) |
+| **숫자 접지** | 원문에 없던 숫자 (`87%` → `약 90%` 같은 변조) |
+| `D+` 보존 | 근거가 되는 D+N 표기 소실 |
+
+`kind`와 `prev_avg` 같은 숫자 필드는 AI에 보내지 않습니다 — `text`만 다듬으므로 구조적으로 변조가 불가능합니다. `overview`는 `라벨: 값` 형식이라 다듬기 대상에서 제외됩니다.
 
 #### `GET /reports?kind=`
 
