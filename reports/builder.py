@@ -14,9 +14,12 @@ part가 증상에 붙을 때도 "더 높은 위치로 기록"이라는 관찰 �
 대신 "낮게 / 높게 기록"과 변화율(%)만 낸다 — 같은 사실을 전달하면서 판정이 아니다.
 polish.py의 BANNED 목록이 이 어휘를 자동으로 되돌린다.
 
-[level 원값 금지]
-평균 3.4 → 2.1 같은 표기는 담지 않는다. level은 그래프 응답 전용이다(규칙 2).
-비율만 계산해서 낸다.
+[level 주간 평균은 담는다 — 2026-08-17 결정]
+"지난주 3.4 → 이번주 2.1" 형태로 리포트 샘플에 들어간다. 환자가 입력한 눈금의
+주간 평균이라는 사실 보고이지 중증도 판정이 아니다. 출처를 함께 표기하고,
+등급 라벨("경증/중등증")은 만들지 않는다.
+
+낱개 level(그날 4점)은 여전히 담지 않는다. 평균만 낸다.
 """
 from collections import defaultdict
 
@@ -29,8 +32,13 @@ from protocols.models import (ActivityRulePhase, ActivityRuleTemplate,
                               CareTaskTemplate)
 
 
-def _line(kind, text):
-    return {"kind": kind, "text": text}
+def _line(kind, text, **extra):
+    """리포트 한 줄. kind와 text는 계약 고정이고 extra는 렌더러용 부속 데이터다.
+
+    PDF는 "지난주 3.4 → 이번주 2.1" 같은 표를 그려야 해서 문장만으로는 부족하다.
+    문장을 파싱하게 두면 문구를 바꿀 때마다 깨지므로 숫자를 따로 실어 보낸다.
+    """
+    return {"kind": kind, "text": text, **extra}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -115,40 +123,50 @@ def symptom_flow(surgery, day_from, day_to, lang):
     for term in terms:
         name = t(term.name, lang)
         points = current.get(term, [])
+        # 렌더러가 표를 그릴 때 쓰는 공통 필드. 문장을 파싱하지 않게 한다.
+        base = {"key": term.key, "name": name}
 
         if not points:
             out.append(_line("miss", t(SYMPTOM_NONE, lang).format(
-                name=name, a=day_from, b=day_to)))
-            continue
-        if len(points) == 1:
-            out.append(_line("info", t(SYMPTOM_ONE, lang).format(
-                name=name, day=points[0][0])))
+                name=name, a=day_from, b=day_to),
+                curr_avg=None, prev_avg=None, delta_pct=None, **base))
             continue
 
+        cur_avg = round(sum(lv for _, lv in points) / len(points), 1)
         peak_day = max(points, key=lambda p: (p[1], -p[0]))[0]
         peak = t(PEAK_NOTE, lang).format(day=peak_day)
+
+        if len(points) == 1:
+            out.append(_line("info", t(SYMPTOM_ONE, lang).format(
+                name=name, day=points[0][0]),
+                curr_avg=cur_avg, prev_avg=None, delta_pct=None,
+                peak_day=peak_day, **base))
+            continue
 
         prev_points = previous.get(term, [])
         if not prev_points:
             # 비교할 이전 구간이 없다. 첫 리포트이거나 그때 기록이 없었다.
             out.append(_line("info", t(SYMPTOM_FIRST, lang).format(
-                name=name, a=day_from, b=day_to, peak=peak)))
+                name=name, a=day_from, b=day_to, peak=peak),
+                curr_avg=cur_avg, prev_avg=None, delta_pct=None,
+                peak_day=peak_day, **base))
             continue
 
-        cur_avg = sum(lv for _, lv in points) / len(points)
-        prev_avg = sum(lv for _, lv in prev_points) / len(prev_points)
+        prev_avg = round(sum(lv for _, lv in prev_points) / len(prev_points), 1)
         pct = round((cur_avg - prev_avg) / prev_avg * 100) if prev_avg else 0
+        extra = dict(curr_avg=cur_avg, prev_avg=prev_avg, delta_pct=pct,
+                     peak_day=peak_day, **base)
 
         if pct <= -FLAT_BAND_PCT:
             out.append(_line("info", t(SYMPTOM_DOWN, lang).format(
-                name=name, pct=abs(pct), peak=peak)))
+                name=name, pct=abs(pct), peak=peak), **extra))
         elif pct >= FLAT_BAND_PCT:
             # 관찰 서술이지 악화 판정이 아니다
             out.append(_line("part", t(SYMPTOM_RISE, lang).format(
-                name=name, pct=pct, peak=peak)))
+                name=name, pct=pct, peak=peak), **extra))
         else:
             out.append(_line("info", t(SYMPTOM_KEEP, lang).format(
-                name=name, peak=peak)))
+                name=name, peak=peak), **extra))
 
     return out
 
@@ -251,16 +269,140 @@ def events(surgery, day_from, day_to, lang):
     ]
 
 
+def routine_rates(surgery, day_from, day_to, lang):
+    """루틴별 이행률. 문장이 아니라 숫자로 낸다 — 샘플 PDF의 이행 목록용.
+
+    분모는 '일수'가 아니라 '회차'다. completion()과 같은 기준이다.
+
+    오늘은 세지 않는다. 아직 진행 중인 하루를 미이행으로 잡으면 이행률이
+    사실과 달라진다 — completion(include_today=False)와 같은 원칙이다.
+    """
+    from checkins.models import TaskLog
+
+    # 오늘은 아직 끝나지 않았다. 어제까지만 센다.
+    day_to = min(day_to, surgery.day_of(timezone.localdate()) - 1)
+    if day_from > day_to:
+        return []
+
+    logs = {
+        (r["task_key"], r["date"]): r["done_count"]
+        for r in TaskLog.objects.filter(
+            surgery=surgery,
+            date__gte=surgery.date_of(day_from),
+            date__lte=surgery.date_of(day_to),
+        ).values("task_key", "date", "done_count")
+    }
+
+    out = []
+    for key, name, task_from, task_to, per_day in _adherence_targets(surgery, lang):
+        a = max(day_from, task_from)
+        b = min(day_to, task_to)
+        if a > b:
+            continue                       # 이 구간에 없는 루틴은 목록에서 뺀다
+
+        required = per_day * (b - a + 1)
+        done = sum(
+            min(logs.get((key, surgery.date_of(d)), 0), per_day)
+            for d in range(a, b + 1)
+        )
+        out.append({
+            "key": key,
+            "name": name,
+            "rate": round(done / required, 3) if required else 0.0,
+            "done": done,
+            "required": required,
+            "day_from": task_from,
+            "day_to": task_to,
+            # 루틴 기간이 이 구간 안에서 끝났다. 화면에서 "완료"로 표시할 수 있다.
+            "ended": task_to <= day_to,
+        })
+
+    out.sort(key=lambda x: (-x["rate"], x["key"]))
+    return out
+
+
+def checkin_days(surgery, day_from, day_to):
+    """구간의 날짜별 체크인 유무. 샘플 PDF의 D+7 ✓ / D+11 · 스트립용.
+
+    오늘도 포함하되 is_today로 구분한다. 아직 안 끝난 하루를 빈 점으로 그리면
+    '빠뜨린 날'처럼 읽히므로, 프론트가 다르게 표시할 수 있어야 한다.
+    """
+    done = dict(
+        surgery.checkins.filter(
+            date__gte=surgery.date_of(day_from),
+            date__lte=surgery.date_of(day_to),
+        ).values_list("date", "completed_at")
+    )
+    today = timezone.localdate()
+
+    out = []
+    for day in range(day_from, day_to + 1):
+        the_date = surgery.date_of(day)
+        out.append({
+            "day": day,
+            # body는 JSONField다. date 객체를 그대로 넣으면 저장에서 TypeError.
+            "date": the_date.isoformat(),
+            "has_checkin": the_date in done,
+            "completed": done.get(the_date) is not None,
+            "is_today": the_date == today,
+        })
+    return out
+
+
+ROUTINE_CONTINUE = {
+    "ko": "{name} 계속 — D+{day_to}까지 유지",
+    "ja": "{name} 継続 — D+{day_to}まで",
+}
+
+
+def next_week(surgery, day_to, span, lang):
+    """다음 구간에 예정된 것. 병원 프로토콜에서 파생한다.
+
+    일정(해금·내원·귀국)과 이어지는 루틴 두 종류를 섞는다.
+    아이콘은 담지 않는다 — 리포트는 의료기관 제시용 문서라 이모지를 쓰지 않는다.
+    """
+    start, end = day_to + 1, day_to + span
+
+    out = []
+    for event in timeline(surgery, lang):
+        if not start <= event["day"] <= end:
+            continue
+        out.append(_line(
+            "info", f"D+{event['day']} — {event['label']}",
+            day=event["day"],
+            date=event["date"].isoformat(),      # body는 JSONField다
+            type=event["type"],
+            badge=event["badge"],
+        ))
+
+    # 다음 구간에도 이어지는 루틴. 이번 구간 이행률을 함께 실어 보낸다.
+    rates = {r["key"]: r for r in routine_rates(surgery, day_to - span + 1, day_to, lang)}
+    for key, name, task_from, task_to, _per_day in _adherence_targets(surgery, lang):
+        if task_to <= day_to or task_from > end:
+            continue                       # 끝났거나 아직 시작 전
+        rate = rates.get(key, {}).get("rate")
+        out.append(_line(
+            "info", t(ROUTINE_CONTINUE, lang).format(name=name, day_to=task_to),
+            key=key, type="routine", day_to=task_to, rate=rate,
+        ))
+
+    return out
+
+
 def build_body(surgery, day_from, day_to, lang):
     """위클리 리포트 본문.
 
-    care_adherence는 담지 않는다. 루틴 이행은 meta.completion_rate 한 숫자로
-    충분하고, 본문은 증상 변화에 집중한다(2026-08-16 화면 정의 변경).
+    care_adherence(문장 목록)는 담지 않는다. 대신 routines에 루틴별 이행률을
+    숫자로 낸다 — 샘플 PDF가 "상체 45° 수면 100% / 압박 테이핑 43%" 형태로
+    그리기 때문이다(2026-08-17 샘플 확인).
     care_adherence() 함수는 남겨둔다 — 귀국용 요약에서 다시 쓸 수 있다.
     """
     return {
+        "checkin_days": checkin_days(surgery, day_from, day_to),
         "symptom_flow": symptom_flow(surgery, day_from, day_to, lang),
+        "routines": routine_rates(surgery, day_from, day_to, lang),
         "events": events(surgery, day_from, day_to, lang),
+        "next_week": next_week(surgery, day_to, day_to - day_from + 1, lang),
     }
 
 

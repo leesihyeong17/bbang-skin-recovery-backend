@@ -783,41 +783,155 @@ SimpleJWT 표준. `{ "refresh": "..." }` → `{ "access": "..." }`
 
 **`tasks_done`은 그날 회차를 다 채운 루틴입니다.** 부분 이행(3회 중 2회)은 `tasks_missing`에 들어가고, 진행도를 보여줄 수 있게 양쪽 다 `done_count` · `times_per_day`를 담습니다. 프론트가 완료 색상을 칠하는 기준이 "전부 완료"이므로 경계를 여기에 맞췄습니다.
 
-#### `POST /reports` — 제출용 · 귀국용 (명세서 3.9)
+#### `POST /reports` — 위클리 리포트 · 귀국용 요약 (명세서 3.9)
 
 ```json
-{ "kind": "submission", "day_from": 0, "day_to": 14, "lang": "ja" }
+{ "kind": "submission", "lang": "ja" }
 ```
 
-`kind` = `submission`(제출용) | `repatriation`(귀국용 일본어 요약)
+| 필드 | 필수 | 설명 |
+|---|---|---|
+| `kind` | ⭕️ | `submission`(위클리 리포트) · `repatriation`(귀국용 요약) |
+| `day_from` `day_to` | ✕ | **생략하세요.** `submission`은 최근 7일, `repatriation`은 전체 기간이 기본입니다 |
+| `lang` | ✕ | 생략 시 환자 언어 |
+
+**제출용 기록은 "위클리 리포트"입니다.** 매번 새로 만드는 문서가 아니라 최근 7일이 계속 갱신되는 성격이고, 화면 명칭도 위클리 리포트로 맞춥니다. 같은 날 같은 조건이면 `200`으로 기존 문서를 돌려줍니다.
+
+`day_to`가 오늘보다 뒤면 `400`입니다. 아직 오지 않은 날은 담지 않습니다.
+
+---
+
+##### `kind: "submission"` — 위클리 리포트
 
 ```json
 {
-  "id": 3, "kind": "submission", "lang": "ja", "day_from": 0, "day_to": 14,
-  "meta": { "checkin_count": 12, "photo_count": 36, "completion_rate": 0.78,
-            "procedure": "코성형 (융비술)", "clinic": "서울 N성형외과의원",
-            "confirmed_at": "2026-08-08", "next_confirm_at": "2026-08-10" },
-  "body": {
-    "symptom_flow": [
-      { "kind": "info", "text": "부기 — D+1에 가장 높게 기록된 뒤 D+3부터 낮은 위치로 유지" }
-    ],
-    "care_adherence": [
-      { "kind": "ok",   "text": "냉찜질 — D+0~D+3 전일 완료" },
-      { "kind": "part", "text": "압박 테이핑 교체 — D+12 이행 기록 없음 (3일 중 2일 완료)" }
-    ],
-    "events": [ { "kind": "info", "text": "D+14 — 귀국 (일본)" } ]
+  "id": 3, "kind": "submission", "title": "위클리 리포트",
+  "lang": "ko", "day_from": 8, "day_to": 14,
+  "meta": {
+    "checkin_count": 5, "checkin_total": 7, "photo_count": 18,
+    "window_completion_rate": 0.426,
+    "completion_rate": 0.724,
+    "previous": { "day_from": 1, "day_to": 7,
+                  "checkin_count": 7, "checkin_total": 7, "photo_count": 21,
+                  "window_completion_rate": 0.868, "completion_rate": 0.882 },
+    "delta": { "checkin_count": -2, "photo_count": -3,
+               "window_completion_rate": -0.442, "completion_rate": -0.158 },
+    "procedure": "코성형 (융비술)", "clinic": "서울 N성형외과의원",
+    "confirmed_at": "2026-08-10", "next_confirm_at": "2026-09-02"
   },
-  "disclaimer": "본 문서는 환자 자가 보고 기반이며 진단서가 아닙니다."
+  "body": {
+    "checkin_days": [
+      { "day": 8, "date": "2026-08-11", "has_checkin": true, "completed": true, "is_today": false },
+      { "day": 14, "date": "2026-08-17", "has_checkin": false, "completed": false, "is_today": true }
+    ],
+    "symptom_flow": [
+      { "kind": "info", "key": "swelling", "name": "부기",
+        "text": "부기 — 이전 7일 대비 49% 낮게 기록 (D+8에 가장 높음)",
+        "prev_avg": 3.9, "curr_avg": 2.0, "delta_pct": -49, "peak_day": 8 }
+    ],
+    "routines": [
+      { "key": "sleep45", "name": "상체 45° 수면", "rate": 0.833,
+        "done": 5, "required": 6, "day_from": 0, "day_to": 28, "ended": false }
+    ],
+    "events": [ { "kind": "info", "text": "D+14 — 귀국 예정" } ],
+    "next_week": [
+      { "kind": "info", "text": "D+15 — 운동 — 가벼운 산책 · 스트레칭까지",
+        "day": 15, "date": "2026-08-18", "type": "unlock", "badge": "해금" },
+      { "kind": "info", "text": "압박 테이핑 교체 계속 — D+28까지 유지",
+        "key": "tape", "type": "routine", "day_to": 28, "rate": 0.333 }
+    ]
+  },
+  "disclaimer": "본 문서는 환자 자가 보고 기반이며 진단서가 아닙니다.",
+  "generated_at": "2026-08-17T11:40:00+09:00"
 }
 ```
 
+**`meta`의 두 이행률은 기준이 다릅니다.**
+
+| 필드 | 기준 | 쓰는 곳 |
+|---|---|---|
+| `window_completion_rate` | 이 구간만 | 리포트의 "주간 평균" 카드 |
+| `completion_rate` | D+0부터 누적 | `/home`의 완주율과 같은 값 |
+
+`previous`는 같은 길이의 직전 구간입니다. 비교 대상이 없으면(첫 주) `previous`가 `null`이고 `delta`의 값이 전부 `null`입니다 — **비교 칸을 숨기세요. `0`이 아닙니다.**
+
+`checkin_days[].is_today`가 `true`인 날은 아직 끝나지 않았습니다. 빈 점으로 그리면 "빠뜨린 날"로 읽히므로 다르게 표시하세요.
+
+`symptom_flow[]`는 문장(`text`)과 숫자를 함께 담습니다. **표를 그릴 때 문장을 파싱하지 마세요** — 문구가 바뀌어도 `prev_avg` `curr_avg` `delta_pct`는 그대로입니다. 기록이 없으면 세 값이 `null`이고 `kind`가 `miss`입니다.
+
+`routines[].rate`와 `next_week[].rate`는 **오늘을 세지 않습니다.** 진행 중인 하루를 미이행으로 잡으면 이행률이 사실과 달라집니다.
+
+`body`에 이모지를 담지 않습니다. 의료기관 제시용 문서입니다.
+
+---
+
+##### `kind: "repatriation"` — 귀국용 요약
+
+독자가 다릅니다. 위클리는 시술한 한국 병원이 보고, 귀국용은 **처음 보는 현지 의료진**이 봅니다. 그래서 시술 개요와 남은 금기가 본문입니다.
+
+```json
+{
+  "id": 4, "kind": "repatriation", "title": "帰国用サマリー",
+  "lang": "ja", "day_from": 0, "day_to": 14,
+  "body": {
+    "overview": [
+      { "kind": "info", "text": "施術: 鼻形成術（隆鼻術）" },
+      { "kind": "info", "text": "施術日: 2026-08-03 / 現在 D+14" },
+      { "kind": "info", "text": "施術機関: ソウルN美容外科医院 +82-2-000-0000" },
+      { "kind": "info", "text": "担当医: KIM SEOJUN" },
+      { "kind": "info", "text": "挿入物: autologous_dermis / silicone" },
+      { "kind": "info", "text": "注意: D+21まで長距離フライト / D+28まで眼鏡の着用 / D+56まで鼻のマッサージ" },
+      { "kind": "info", "text": "次回受診: D+30 経過診察 (2026-09-02)" }
+    ],
+    "symptom_flow": [ ... ],
+    "ips_mapping": {
+      "history_of_procedures": ["procedure", "date", "clinic", "surgeon", "implant"],
+      "plan_of_care": ["restriction", "next_visit"],
+      "patient_story": ["course"]
+    }
+  },
+  "disclaimer": "..."
+}
+```
+
+`注意` 줄은 하드코딩이 아니라 **오늘 기준으로 아직 안 풀린 규칙을 수집**해서 만듭니다. 이미 풀린 항목은 빠지고, 프로토콜이 바뀌면 문장도 따라 바뀝니다.
+
+`overview`는 `라벨: 값` 형식이라 AI 다듬기 대상에서 제외됩니다. 표로 그려도 형식이 깨지지 않습니다.
+
+`ips_mapping`은 국제 환자 요약(IPS) 표준 섹션에 어느 항목이 대응되는지 보여줍니다.
+
+---
+
+##### 공통 규칙
+
 **`body[].kind`는 `ok` / `part` / `miss` / `info` 4종 고정입니다.** `warning` · `abnormal` · `risk`를 추가하면 그 순간 판정이 됩니다.
+
+증상의 **주간 평균**(`prev_avg` `curr_avg`)은 담지만 **등급 라벨은 만들지 않습니다.** `경증` `중등증` `정상 범위` 같은 말이 붙는 순간 판정이 됩니다. 낱개 `level`도 리포트에 담지 않습니다 — 평균만 냅니다.
+
+증상이 이전 구간보다 높게 기록되면 `kind`가 `part`입니다. **"더 높게 기록"이라는 관찰 서술이지 "악화"가 아닙니다.** `호전` `악화` 어휘는 쓰지 않습니다.
 
 `meta.confirmed_at` / `next_confirm_at`은 **`Appointment`에서 파생합니다** — 가장 최근 `done` 예약일 / 가장 가까운 `scheduled` 예약일.
 
-> **생성 전략:** 규칙 기반 로직으로 문장을 먼저 만들고, AI는 다듬기만 합니다. AI 호출이 실패해도 리포트가 비지 않습니다.
+`body`와 `meta`는 **생성 시점 스냅샷**입니다. 이후 체크인이 바뀌어도 이미 만든 리포트는 변하지 않습니다. 병원에 전달한 문서가 나중에 달라지면 안 되기 때문입니다.
 
-#### `GET /reports/{id}` · `GET /reports?kind=`
+> **생성 전략:** 규칙 기반 로직으로 문장을 먼저 만들고, AI는 다듬기만 합니다. AI 호출이 실패하거나 결과가 검사를 통과하지 못하면 원문이 그대로 나갑니다. `ai_model`이 비어 있으면 AI를 쓰지 않은 문서입니다.
+
+#### `GET /reports?kind=`
+
+지난 리포트 목록. `kind`는 선택이고 생략하면 전체입니다. 최신순입니다.
+
+```json
+{ "items": [ { "id": 3, "kind": "submission", "lang": "ko",
+               "day_from": 8, "day_to": 14, "generated_at": "..." } ] }
+```
+
+**목록에는 `body`와 `meta`가 없습니다.** 리포트 하나에 문장·숫자가 수십 개라 목록이 무거워집니다. 상세에서 받으세요.
+
+#### `GET /reports/{id}`
+
+`POST /reports`의 성공 응답과 같은 형식입니다. 저장된 스냅샷을 그대로 돌려줍니다.
+
+없거나 본인 것이 아니면 `404 NOT_FOUND`입니다.
 
 ---
 
