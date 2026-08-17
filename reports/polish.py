@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 
 from django.conf import settings
 
@@ -33,6 +34,23 @@ SYSTEM_PROMPT = (
 )
 
 
+def _numbers_kept(original, polished):
+    """원문에 없던 숫자가 들어왔는지 본다.
+
+    문장에 나오는 숫자는 전부 계산값이다. AI가 문장을 재구성하다 값을 바꾸면
+    (87% → "약 90%") 사실이 틀어지는데, weekly_summary처럼 text만 있는 줄은
+    옆에 대조할 숫자가 없어서 틀린 채로 저장된다. 병원 제출 문서라 막아야 한다.
+
+    빼는 건 허용한다 — 문장이 짧아지는 것뿐이다. 없던 걸 만드는 것만 거부한다.
+    """
+    allowed = set(re.findall(r"\d+", original))
+    return set(re.findall(r"\d+", polished)) <= allowed
+
+
+def _sentence_count(text):
+    return len(re.findall(r"[.。!?！？]", text))
+
+
 def _looks_safe(original, polished):
     """다듬은 문장이 원문의 사실을 유지하는지 본다."""
     if not polished or not isinstance(polished, str):
@@ -43,8 +61,14 @@ def _looks_safe(original, polished):
     # 길이가 크게 늘면 뭔가 덧붙인 것이다
     if len(polished) > len(original) * 1.6 + 20:
         return False
+    # 문장이 늘면 없던 내용이 붙은 것이다. 격려·조언이 이 경로로 들어온다.
+    # 금지어 목록으로 잡으려 하면 끝이 없어서 구조로 막는다.
+    if _sentence_count(polished) > max(_sentence_count(original), 1):
+        return False
     # D+N 표기가 사라지면 근거가 빠진 것이다
     if "D+" in original and "D+" not in polished:
+        return False
+    if not _numbers_kept(original, polished):
         return False
     return True
 

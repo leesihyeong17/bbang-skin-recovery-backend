@@ -389,7 +389,118 @@ def next_week(surgery, day_to, span, lang):
     return out
 
 
-def build_body(surgery, day_from, day_to, lang):
+# ──────────────────────────────────────────────────────────────
+# 이번 주 정리 — 규칙 기반
+# ──────────────────────────────────────────────────────────────
+# 샘플 PDF의 3문단이다. AI를 쓰지 않는다. 문단마다 주제가 고정이라 화면 레이아웃이
+# 흔들리지 않고, 숫자가 전부 계산값이라 지어낸 통계가 섞일 여지가 없다.
+# 조사(이/가, 을/를)를 붙이면 받침에 따라 틀린다. 이름을 문장 끝이나 콜론 뒤로 빼서
+# 조사가 필요 없는 문구로 만든다. 일본어에도 같은 구조가 자연스럽다.
+SUM_DOWN = {
+    "ko": "이전 7일 대비 낮게 기록: {names} ({top_name} {top_pct}%로 변화 폭이 가장 큼)",
+    "ja": "前7日比で低く記録: {names}（{top_name} {top_pct}%で変化幅が最大）",
+}
+SUM_UP = {
+    "ko": "이전 7일 대비 높게 기록: {names}. 나머지 항목은 낮거나 비슷한 위치입니다.",
+    "ja": "前7日比で高く記録: {names}。他の項目は低いか同程度です。",
+}
+SUM_FLAT = {
+    "ko": "증상 3항목이 이전 7일과 비슷한 위치로 유지되었습니다.",
+    "ja": "症状3項目は前7日と同程度で推移しました。",
+}
+SUM_NO_SYMPTOM = {
+    "ko": "이번 구간에 증상 기록이 없습니다.",
+    "ja": "この区間に症状の記録がありません。",
+}
+SUM_ROUTINE = {
+    "ko": "가장 낮은 항목: {name} {rate}% ({done}/{required}회)",
+    "ja": "最も低い項目: {name} {rate}%（{done}/{required}回）",
+}
+SUM_ROUTINE_ALL = {
+    "ko": "이번 구간 루틴을 모두 채웠습니다.",
+    "ja": "この区間のルーティンをすべて達成しました。",
+}
+SUM_RATE_MOVE = {
+    "ko": " 전체 이행률은 {prev}% → {curr}%입니다.",
+    "ja": " 全体の実施率は{prev}% → {curr}%です。",
+}
+SUM_CHECKIN = {
+    "ko": "체크인은 {total}일 중 {done}일 기록되었습니다.",
+    "ja": "チェックインは{total}日のうち{done}日記録されました。",
+}
+SUM_CHECKIN_MISS = {
+    "ko": " D+{days} 기록이 비어 있습니다.",
+    "ja": " D+{days}の記録が空いています。",
+}
+SUM_CHECKIN_FULL = {
+    "ko": "체크인을 {total}일 전부 기록했습니다.",
+    "ja": "チェックインを{total}日すべて記録しました。",
+}
+
+
+def weekly_summary(surgery, day_from, day_to, lang, symptoms, routines, days, meta):
+    """이번 주 정리 3문단. 이미 계산된 값만 재료로 쓴다.
+
+    슬롯이 고정이다 — ① 증상 변화 ② 이행률 ③ 체크인 성실도.
+    자유 서술이면 매주 주제가 달라져 화면이 흔들린다.
+    """
+    out = []
+
+    # ① 증상. 표시 순서(order)를 유지하고 최대 변화만 괄호에 짚는다.
+    scored = [s for s in symptoms if s.get("delta_pct") is not None]
+    if not scored:
+        out.append(_line("info", t(SUM_NO_SYMPTOM, lang)))
+    else:
+        down = [s for s in scored if s["delta_pct"] <= -FLAT_BAND_PCT]
+        up = [s for s in scored if s["delta_pct"] >= FLAT_BAND_PCT]
+        if down:
+            top = min(down, key=lambda s: s["delta_pct"])
+            out.append(_line("info", t(SUM_DOWN, lang).format(
+                names=" · ".join(s["name"] for s in down),
+                top_name=top["name"], top_pct=top["delta_pct"],
+            )))
+        elif up:
+            # 관찰 서술이지 악화 판정이 아니다
+            out.append(_line("part", t(SUM_UP, lang).format(
+                names=" · ".join(s["name"] for s in up))))
+        else:
+            out.append(_line("info", t(SUM_FLAT, lang)))
+
+    # ② 이행률 — 가장 낮은 루틴을 짚는다. 환자가 다음 주에 무엇을 볼지가 명확해진다.
+    if routines and all(r["done"] >= r["required"] for r in routines):
+        out.append(_line("ok", t(SUM_ROUTINE_ALL, lang)))
+    elif routines:
+        worst = min(routines, key=lambda r: (r["rate"], r["key"]))
+        text = t(SUM_ROUTINE, lang).format(
+            name=worst["name"], rate=round(worst["rate"] * 100),
+            done=worst["done"], required=worst["required"],
+        )
+        # 전체가 어디서 어디로 움직였는지. 지난주 값이 없으면 생략한다.
+        prev = (meta.get("previous") or {}).get("window_completion_rate")
+        curr = meta.get("window_completion_rate")
+        if prev is not None and curr is not None:
+            text += t(SUM_RATE_MOVE, lang).format(
+                prev=round(prev * 100), curr=round(curr * 100))
+        out.append(_line("part", text))
+
+    # ③ 체크인
+    total = len(days)
+    logged = sum(1 for d in days if d["has_checkin"])
+    # 오늘은 아직 안 끝났으니 빠진 날로 세지 않는다
+    blank = [d["day"] for d in days if not d["has_checkin"] and not d["is_today"]]
+    if total and logged == total:
+        out.append(_line("ok", t(SUM_CHECKIN_FULL, lang).format(total=total)))
+    else:
+        text = t(SUM_CHECKIN, lang).format(total=total, done=logged)
+        if blank:
+            text += t(SUM_CHECKIN_MISS, lang).format(
+                days=" · D+".join(str(d) for d in blank))
+        out.append(_line("info" if not blank else "part", text))
+
+    return out
+
+
+def build_body(surgery, day_from, day_to, lang, meta):
     """위클리 리포트 본문.
 
     care_adherence(문장 목록)는 담지 않는다. 대신 routines에 루틴별 이행률을
@@ -397,10 +508,18 @@ def build_body(surgery, day_from, day_to, lang):
     그리기 때문이다(2026-08-17 샘플 확인).
     care_adherence() 함수는 남겨둔다 — 귀국용 요약에서 다시 쓸 수 있다.
     """
+    days = checkin_days(surgery, day_from, day_to)
+    symptoms = symptom_flow(surgery, day_from, day_to, lang)
+    routines = routine_rates(surgery, day_from, day_to, lang)
+
     return {
-        "checkin_days": checkin_days(surgery, day_from, day_to),
-        "symptom_flow": symptom_flow(surgery, day_from, day_to, lang),
-        "routines": routine_rates(surgery, day_from, day_to, lang),
+        "overview": overview_rows(surgery, lang),
+        "checkin_days": days,
+        "symptom_flow": symptoms,
+        "routines": routines,
+        # 위 세 묶음에서 파생한다. 새로 조회하지 않아 숫자가 어긋날 수 없다.
+        "weekly_summary": weekly_summary(
+            surgery, day_from, day_to, lang, symptoms, routines, days, meta),
         "events": events(surgery, day_from, day_to, lang),
         "next_week": next_week(surgery, day_to, day_to - day_from + 1, lang),
     }
@@ -417,6 +536,7 @@ OVERVIEW = {
     "date": {"ko": "시술일", "ja": "施術日", "en": "Date"},
     "clinic": {"ko": "시술 기관", "ja": "施術機関", "en": "Clinic"},
     "surgeon": {"ko": "담당의", "ja": "担当医", "en": "Surgeon"},
+    "patient": {"ko": "환자", "ja": "患者", "en": "Patient"},
     "implant": {"ko": "삽입물", "ja": "挿入物", "en": "Implant"},
     "course": {"ko": "경과", "ja": "経過", "en": "Course"},
     "restriction": {"ko": "주의", "ja": "注意", "en": "Restrictions"},
@@ -436,6 +556,33 @@ IPS_MAPPING = {
     "plan_of_care": ["restriction", "next_visit"],
     "patient_story": ["course"],
 }
+
+
+def overview_rows(surgery, lang):
+    """시술 개요. "라벨: 값" 한 줄씩. 위클리와 귀국용이 같이 쓴다.
+
+    샘플 PDF는 위클리 상단에도 이 블록을 둔다 — 의료기관에 제출하는 문서라
+    "누가 무슨 수술을 받았는지"가 첫 줄에 있어야 한다.
+    """
+    today = surgery.day_of(timezone.localdate())
+    patient = surgery.patient
+
+    def row(key, value):
+        return _line("info", f"{t(OVERVIEW[key], lang)}: {value}")
+
+    lines = [row("procedure", t(surgery.procedure_type.name, lang))]
+    if detail := t(surgery.detail, lang):
+        lines.append(row("detail", detail))
+
+    name = t(patient.name, lang)
+    lines += [
+        row("date", t(NOW_TEXT, lang).format(date=surgery.surgery_date, day=today)),
+        row("clinic", f"{t(surgery.clinic.name, lang)} {surgery.clinic.tel}"),
+        # 현지 의료진이 읽어야 하므로 여권 표기명을 우선한다
+        row("surgeon", surgery.surgeon.name_romaji or t(surgery.surgeon.name, lang)),
+        row("patient", f"{name} · {patient.patient_code}"),
+    ]
+    return lines
 
 
 def _remaining_restrictions(surgery, day, lang):
@@ -480,15 +627,7 @@ def build_repatriation_body(surgery, day_from, day_to, lang):
     def row(key, value):
         return _line("info", f"{t(OVERVIEW[key], lang)}: {value}")
 
-    lines = [
-        row("procedure", t(surgery.procedure_type.name, lang)),
-        row("date", t(NOW_TEXT, lang).format(date=surgery.surgery_date, day=today)),
-        row("clinic", f"{t(surgery.clinic.name, lang)} {surgery.clinic.tel}"),
-        row("surgeon", surgery.surgeon.name_romaji or t(surgery.surgeon.name, lang)),
-    ]
-
-    if detail := t(surgery.detail, lang):
-        lines.insert(1, row("detail", detail))
+    lines = overview_rows(surgery, lang)
 
     # 보형물 정보는 귀국 후 MRI·재수술 검토에 필수다(ERD 865행)
     if surgery.implant:
