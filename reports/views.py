@@ -10,7 +10,9 @@ from care.models import Appointment
 from care.services import completion
 from config.utils import api_error, t
 
-from .builder import build_body, build_repatriation_body
+from care.services import DEFAULT_LANG
+
+from .builder import build_body, build_repatriation_body, routine_rates
 from .models import RecoveryReport
 from .polish import PROMPT_VERSION, polish_body
 
@@ -28,11 +30,52 @@ TITLE = {
 }
 
 
-def _meta(surgery, day_from, day_to, lang):
-    checkins = surgery.checkins.filter(
+def _window_stats(surgery, day_from, day_to, today_day):
+    """한 구간의 체크인·사진·완주율. 이번 주와 지난주에 같은 함수를 쓴다."""
+    if day_from > day_to:
+        return None
+
+    stats = surgery.checkins.filter(
         date__gte=surgery.date_of(day_from), date__lte=surgery.date_of(day_to)
+    ).aggregate(
+        n=Count("id", distinct=True), photos=Count("photos", distinct=True)
     )
-    stats = checkins.aggregate(n=Count("id", distinct=True), photos=Count("photos", distinct=True))
+    # 구간 이행률. 샘플 PDF의 "78% 주간 평균" 카드가 이 값이다.
+    # routines와 같은 함수를 써서 목록 합계와 카드 숫자가 어긋나지 않는다.
+    routines = routine_rates(surgery, day_from, day_to, DEFAULT_LANG)
+    done = sum(r["done"] for r in routines)
+    required = sum(r["required"] for r in routines)
+
+    return {
+        "day_from": day_from,
+        "day_to": day_to,
+        "checkin_count": stats["n"],
+        "checkin_total": day_to - day_from + 1,     # "6 / 7일" 표기용
+        "photo_count": stats["photos"],
+        # 이 구간만. 리포트 카드용
+        "window_completion_rate": round(done / required, 3) if required else None,
+        # D+0부터 누적. /home의 완주율과 같은 값이라 화면 간 일관성을 위해 유지한다
+        "completion_rate": completion(
+            surgery, day_to, include_today=day_to < today_day
+        ),
+    }
+
+
+def _meta(surgery, day_from, day_to, lang):
+    today_day = surgery.day_of(timezone.localdate())
+    current = _window_stats(surgery, day_from, day_to, today_day)
+
+    # 같은 길이의 직전 구간. 샘플 PDF의 "지난주 대비" 카드가 여기서 나온다.
+    span = day_to - day_from + 1
+    prev_from, prev_to = day_from - span, day_from - 1
+    previous = _window_stats(surgery, max(0, prev_from), prev_to, today_day) \
+        if prev_to >= 0 else None
+
+    def delta(key):
+        """이번 주 - 지난주. 비교할 구간이 없으면 None."""
+        if previous is None or current[key] is None or previous[key] is None:
+            return None
+        return round(current[key] - previous[key], 3)
 
     now = timezone.now()
     # 계약 794행: Appointment에서 파생한다
@@ -50,14 +93,20 @@ def _meta(surgery, day_from, day_to, lang):
         .first()
     )
 
-    today_day = surgery.day_of(timezone.localdate())
     return {
-        "checkin_count": stats["n"],
-        "photo_count": stats["photos"],
-        # 지난 구간이면 마지막 날까지 센다
-        "completion_rate": completion(
-            surgery, day_to, include_today=day_to < today_day
-        ),
+        "checkin_count": current["checkin_count"],
+        "checkin_total": current["checkin_total"],
+        "photo_count": current["photo_count"],
+        "window_completion_rate": current["window_completion_rate"],
+        "completion_rate": current["completion_rate"],
+        # 지난주 값과 증감. 없으면(첫 주) null — 프론트는 비교 칸을 숨기면 된다.
+        "previous": previous,
+        "delta": {
+            "checkin_count": delta("checkin_count"),
+            "photo_count": delta("photo_count"),
+            "window_completion_rate": delta("window_completion_rate"),
+            "completion_rate": delta("completion_rate"),
+        },
         "procedure": t(surgery.procedure_type.name, lang),
         "clinic": t(surgery.clinic.name, lang),
         "confirmed_at": confirmed and timezone.localtime(confirmed.scheduled_at).date().isoformat(),

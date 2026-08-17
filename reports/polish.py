@@ -90,11 +90,9 @@ def polish_lines(lines, lang):
             logger.warning("polish rejected: 응답 형식 또는 줄 개수 불일치")
             return lines, ""
 
+        # kind와 부속 데이터(curr_avg 등)는 원본을 유지한다. AI는 text만 만진다.
         out = [
-            {
-                "kind": line["kind"],          # kind는 AI가 못 건드린다
-                "text": new if _looks_safe(line["text"], new) else line["text"],
-            }
+            {**line, "text": new if _looks_safe(line["text"], new) else line["text"]}
             for line, new in zip(lines, polished)
         ]
         return out, f"openai:{model}"
