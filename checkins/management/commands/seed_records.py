@@ -6,6 +6,7 @@ seed_demo가 만든 환자 위에 **회복 기록**을 얹습니다. 시연용�
     poetry run python manage.py loaddata seed_protocol
     poetry run python manage.py seed_demo
     poetry run python manage.py seed_records --reset
+    poetry run python manage.py seed_records --reset --without-prescription
 
 seed_demo(A 소유)를 건드리지 않으려고 별도 커맨드로 뒀습니다. 머지 충돌이 없습니다.
 
@@ -93,6 +94,10 @@ class Command(BaseCommand):
             "--reset", action="store_true",
             help="기존 체크인·이행기록·리포트·상담을 지우고 다시 만듭니다",
         )
+        parser.add_argument(
+            "--without-prescription", action="store_true",
+            help="온보딩 시연을 위해 확정 처방전 시딩을 건너뜁니다",
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -115,7 +120,11 @@ class Command(BaseCommand):
             self._reset(surgery)
 
         self._fix_appointments(surgery)
-        self._prescription(surgery)
+        if options["without_prescription"]:
+            deleted = Prescription.objects.filter(surgery=surgery).delete()[0]
+            self.stdout.write(f"처방 시딩 건너뜀 · 기존 관련 행 {deleted}건 삭제")
+        else:
+            self._prescription(surgery)
         self._documents(surgery)
         self._checkins(surgery, last_day)
         self._task_logs(surgery, last_day)
