@@ -71,7 +71,7 @@ def resolve_day(request, surgery):
         return int(raw)
     if raw := request.query_params.get("date"):
         return surgery.day_of(datetime.strptime(raw, "%Y-%m-%d").date())
-    return surgery.day_of(date.today())
+    return surgery.day_of(timezone.localdate())
 
 
 def file_url(field):
@@ -590,7 +590,7 @@ class OnboardingCompleteView(APIView):
         s.save(update_fields=["return_date", "onboarded_at", "care_status"])
 
         lang = resolve_lang(request) or DEFAULT_LANG
-        day = s.day_of(date.today())
+        day = s.day_of(timezone.localdate())
         ci = care_items(s, day, lang)
         events = timeline(s, lang)
         rx = getattr(s, "prescription", None)

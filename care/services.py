@@ -26,6 +26,8 @@ from config.utils import t as pick
 
 from datetime import date
 
+from django.utils import timezone
+
 from checkins.models import TaskLog
 from protocols.models import ActivityRuleTemplate, CareTaskTemplate
 
@@ -324,7 +326,7 @@ def completion(surgery, day=None, include_today=False):
     v1에서는 로직을 갈라놓지 않기로 했습니다(PR 리뷰 포인트 2).
     """
     if day is None:
-        day = surgery.day_of(date.today())
+        day = surgery.day_of(timezone.localdate())
     last = day if include_today else day - 1
     if last < 0:
         return 0.0
