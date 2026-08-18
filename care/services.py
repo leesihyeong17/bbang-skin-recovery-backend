@@ -34,6 +34,15 @@ DEFAULT_LANG = "ko"
 # 상태 등급. 숫자가 클수록 자유로움 → 전이 방향 판정에 씀 (해금인가 주의 시작인가)
 STATUS_RANK = {"no": 0, "care": 1, "ok": 2}
 
+TIMELINE_BADGES = {
+    "unlock": {"ko": "해금", "ja": "解禁", "en": "Unlocked"},
+    "care_start": {"ko": "주의", "ja": "注意", "en": "Caution"},
+    "visit": {"ko": "내원", "ja": "来院", "en": "Visit"},
+    "remote": {"ko": "원격", "ja": "遠隔", "en": "Remote"},
+    "return": {"ko": "귀국", "ja": "帰国", "en": "Return"},
+    "complete": {"ko": "완주", "ja": "完了", "en": "Complete"},
+}
+
 
 # ──────────────────────────────────────────────────────────────
 # 다국어
@@ -53,6 +62,11 @@ def pick(value, lang=DEFAULT_LANG):
     if not isinstance(value, dict):
         return str(value)
     return value.get(lang) or value.get(DEFAULT_LANG) or next(iter(value.values()), "")
+
+
+def timeline_badge(event_type, lang=DEFAULT_LANG):
+    """일정 이벤트 종류를 요청 언어에 맞는 짧은 배지 문구로 바꿉니다."""
+    return pick(TIMELINE_BADGES[event_type], lang)
 
 
 def _fill(text, surgery):
@@ -358,16 +372,16 @@ def timeline(surgery, lang=DEFAULT_LANG):
         for prev, cur in zip(phases, phases[1:]):
             before, after = STATUS_RANK[prev["status"]], STATUS_RANK[cur["status"]]
             if after > before:
-                kind, badge = "unlock", "해금"
+                kind = "unlock"
             elif after < before:
-                kind, badge = "care_start", "주의"
+                kind = "care_start"
             else:
                 continue
             events.append({
                 "day": cur["day_from"],
                 "date": surgery.date_of(cur["day_from"]),
                 "type": kind,
-                "badge": badge,
+                "badge": timeline_badge(kind, lang),
                 "label": f"{pick(r.name, lang)} — {_fill(pick(cur['text'], lang), surgery)}",
                 "rule_key": r.key,
             })
@@ -378,7 +392,7 @@ def timeline(surgery, lang=DEFAULT_LANG):
             "day": d,
             "date": ap.scheduled_at.date(),
             "type": ap.kind,                       # visit | remote
-            "badge": "내원" if ap.kind == "visit" else "원격",
+            "badge": timeline_badge(ap.kind, lang),
             "label": pick(ap.title, lang),
             "appointment_id": ap.id,
         })
@@ -387,16 +401,24 @@ def timeline(surgery, lang=DEFAULT_LANG):
         events.append({
             "day": surgery.return_day,
             "date": surgery.return_date,
-            "type": "return", "badge": "귀국",
-            "label": {"ko": "귀국 예정", "ja": "帰国予定"}.get(lang, "귀국 예정"),
+            "type": "return", "badge": timeline_badge("return", lang),
+            "label": pick({
+                "ko": "귀국 예정",
+                "ja": "帰国予定",
+                "en": "Scheduled return",
+            }, lang),
         })
 
     end = surgery.program_days
     events.append({
         "day": end,
         "date": surgery.date_of(end),
-        "type": "complete", "badge": "완주",
-        "label": {"ko": "케어 프로그램 완주", "ja": "ケアプログラム完了"}.get(lang, "케어 프로그램 완주"),
+        "type": "complete", "badge": timeline_badge("complete", lang),
+        "label": pick({
+            "ko": "케어 프로그램 완주",
+            "ja": "ケアプログラム完了",
+            "en": "Care program complete",
+        }, lang),
     })
 
     events.sort(key=lambda e: (e["day"], e["type"]))

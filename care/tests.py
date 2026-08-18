@@ -8,6 +8,7 @@ from checkins.models import SymptomTerm
 from protocols.models import ActivityRuleTemplate, CareTaskTemplate, ProcedureType
 
 from .models import Prescription, Surgery
+from .services import timeline_badge
 
 
 def import_payload():
@@ -219,3 +220,45 @@ class PrescriptionAdminDraftFlowTests(APITestCase):
         )
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data["error"]["code"], "OCR_DRAFT_EXPIRED")
+
+
+class ScheduleLocalizationTests(APITestCase):
+    import_url = "/api/v1/admin/clinic-data/import"
+    schedule_url = "/api/v1/schedule"
+
+    def setUp(self):
+        admin = Patient.objects.create_superuser(
+            patient_code="SCHEDULE-ADMIN", dob=date(1980, 1, 1)
+        )
+        self.client.force_authenticate(admin)
+        response = self.client.post(self.import_url, import_payload(), format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        patient = Patient.objects.get(patient_code="IMPORT-PATIENT-1")
+        self.client.force_authenticate(patient)
+
+    def test_schedule_badges_follow_patient_language(self):
+        response = self.client.get(self.schedule_url)
+
+        self.assertEqual(response.status_code, 200, response.data)
+        badges = {event["type"]: event["badge"] for event in response.data["upcoming"]}
+        self.assertEqual(badges["visit"], "来院")
+        self.assertEqual(badges["unlock"], "解禁")
+        self.assertEqual(badges["return"], "帰国")
+        self.assertEqual(badges["complete"], "完了")
+
+    def test_every_timeline_badge_supports_all_patient_languages(self):
+        expected = {
+            "unlock": ("해금", "解禁", "Unlocked"),
+            "care_start": ("주의", "注意", "Caution"),
+            "visit": ("내원", "来院", "Visit"),
+            "remote": ("원격", "遠隔", "Remote"),
+            "return": ("귀국", "帰国", "Return"),
+            "complete": ("완주", "完了", "Complete"),
+        }
+
+        for event_type, translations in expected.items():
+            with self.subTest(event_type=event_type):
+                self.assertEqual(
+                    tuple(timeline_badge(event_type, lang) for lang in ("ko", "ja", "en")),
+                    translations,
+                )
