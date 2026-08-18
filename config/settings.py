@@ -40,8 +40,8 @@ SECRET_KEY = get_secret("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [get_secret("ALLOWED_HOSTS")]
-CSRF_TRUSTED_ORIGINS = [get_secret("CSRF_TRUSTED_ORIGINS")]
+ALLOWED_HOSTS = get_secret("ALLOWED_HOSTS")
+CSRF_TRUSTED_ORIGINS = get_secret("CSRF_TRUSTED_ORIGINS")
 
 
 # Application definition
