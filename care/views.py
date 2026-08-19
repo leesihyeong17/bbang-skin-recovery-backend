@@ -19,7 +19,7 @@ care/views.py — A 담당 엔드포인트
 """
 from django.conf import settings
 
-from config.utils import api_error as err
+from config.utils import api_error as err, resolve_lang as resolve_request_lang
 
 from datetime import date, datetime
 
@@ -89,10 +89,8 @@ def file_url(field):
         return None
 
 def resolve_lang(request):
-    """개발 중 언어 대조용. 운영에서는 항상 환자의 확정 언어를 씁니다."""
-    if settings.DEBUG and (q := request.query_params.get("lang")):
-        return q
-    return request.user.lang or DEFAULT_LANG
+    """UI 언어는 요청 값이 우선이고, patient.lang는 fallback으로만 쓴다."""
+    return resolve_request_lang(request, default=DEFAULT_LANG)
 
 
 def validation_error(detail):
