@@ -1,4 +1,4 @@
-from config.utils import api_error, t
+from config.utils import api_error, resolve_lang, t
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -203,7 +203,7 @@ class CheckinComplete(APIView):
             return err
         surgery = checkin.surgery
 
-        lang = request.user.lang
+        lang = resolve_lang(request, default=request.user.lang or "ko")
 
         angles = set(checkin.photos.values_list("angle", flat=True))
         need = set(CheckinPhoto.Angle.values) - angles
@@ -282,7 +282,7 @@ class RecordSymptomList(APIView):
             .select_related("term", "checkin")
             .order_by("term__order", "checkin__date")
         )
-        lang = request.user.lang
+        lang = resolve_lang(request, default=request.user.lang or "ko")
         terms = {}
         for row in rows:
             entry = terms.setdefault(
@@ -337,7 +337,7 @@ class RecordCalendar(APIView):
                 {"date": d, "day": surgery.day_of(d), "has_checkin": d in checked}
             )
 
-        lang = request.user.lang
+        lang = resolve_lang(request, default=request.user.lang or "ko")
         return Response({"return_box": _return_box(surgery, today, lang), "days": days})
 
 class RecordDay(APIView):
@@ -363,7 +363,7 @@ class RecordDay(APIView):
         if parsed > timezone.localdate():
             return api_error("VALIDATION_ERROR", "아직 오지 않은 날짜입니다")
 
-        lang = request.user.lang
+        lang = resolve_lang(request, default=request.user.lang or "ko")
 
         checkin = (
             surgery.checkins.filter(date=parsed)

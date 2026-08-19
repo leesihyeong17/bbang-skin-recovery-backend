@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from datetime import datetime, time
 
 from care.services import completion
-from config.utils import api_error, t
+from config.utils import api_error, resolve_lang, t
 
 from care.services import DEFAULT_LANG
 
@@ -172,7 +172,7 @@ class ReportListView(APIView):
         if day_to > today_day:
             return api_error("VALIDATION_ERROR", "아직 오지 않은 날짜는 담을 수 없습니다")
 
-        lang = request.data.get("lang") or request.user.lang
+        lang = resolve_lang(request, default=request.user.lang or "ko")
         if lang not in ("ko", "ja", "en"):
             return api_error("VALIDATION_ERROR", "지원하지 않는 언어입니다")
 

@@ -17,7 +17,7 @@ from .translation import translate
 
 
 # Create your views here.
-from config.utils import api_error, t
+from config.utils import api_error, resolve_lang, t
 
 DOC_EXPIRE = 600 #s3로 옮기면 사용
 
@@ -96,7 +96,7 @@ class ClinicView(APIView):
         if surgery is None:
             return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
 
-        lang = request.user.lang
+        lang = resolve_lang(request)
         clinic = surgery.clinic
         surgeon = surgery.surgeon
 
@@ -127,7 +127,7 @@ class AppointmentListView(APIView):
         if surgery is None:
             return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
 
-        lang = request.user.lang
+        lang = resolve_lang(request)
         now = timezone.now()
 
         items = []
@@ -157,7 +157,7 @@ class NotificationListView(APIView):
         if surgery is None:
             return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
 
-        lang = request.user.lang
+        lang = resolve_lang(request)
         items = []
 
         # ── 병원 답변 ────────────────────────────────────────
@@ -296,7 +296,7 @@ class ConsultMessageView(APIView):
         if surgery is None:
             return api_error("VALIDATION_ERROR", "등록된 시술이 없습니다")
 
-        lang = request.user.lang
+        lang = resolve_lang(request)
         messages = (
             surgery.consult_messages
             .select_related("attached_checkin")
@@ -333,7 +333,7 @@ class ConsultMessageView(APIView):
             if checkin is None:
                 return api_error("NOT_FOUND", "첨부할 체크인을 찾을 수 없습니다", 404)
 
-        lang = request.user.lang
+        lang = resolve_lang(request)
         translated, engine = translate(body, lang, CLINIC_LANG)
 
         message = ConsultMessage.objects.create(
