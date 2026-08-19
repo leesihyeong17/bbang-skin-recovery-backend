@@ -197,6 +197,8 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 CORS_ALLOW_CREDENTIALS = True
 
 # 서버로 요청 보낼 수 있는 도메인들 정의
