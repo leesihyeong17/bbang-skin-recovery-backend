@@ -46,7 +46,14 @@ from .services import (DEFAULT_LANG, care_items, completion, next_unlock, pick,
                        stage_of, timeline, validate_task_key, _fill,
                        _phases_with_from, _medication_task)
 
+from io import BytesIO
+from uuid import uuid4
 
+from django.core.files.base import ContentFile
+from PIL import Image, ImageOps, UnidentifiedImageError
+
+from .import_service import _json_ready
+from .ocr import extract_prescription
 # ──────────────────────────────────────────────────────────────
 # 공통 헬퍼
 # ──────────────────────────────────────────────────────────────
@@ -147,6 +154,81 @@ class PrescriptionOCRView(APIView):
             "prn_count": len(items) - regular_count,
             "not_extracted": ["요양기관기호", "질병분류기호", "면허번호", "교부번호"],
         })
+
+
+class PrescriptionOCRUploadView(APIView):
+    """v2. 환자가 촬영한 처방전 사진을 업로드해 OCR을 실행합니다."""
+
+    def post(self, request):
+        s = get_surgery(request)
+        if s is None:
+            return err("ONBOARDING_REQUIRED", "등록된 시술이 없습니다", status.HTTP_403_FORBIDDEN)
+
+        prescription = Prescription.objects.filter(surgery=s).first()
+        if prescription and prescription.confirmed_at:
+            return err(
+                "PRESCRIPTION_ALREADY_CONFIRMED",
+                "이미 확정한 처방전입니다", status.HTTP_409_CONFLICT,
+            )
+
+        uploaded = request.data.get("image")
+        if not uploaded:
+            return err("VALIDATION_ERROR", "사진을 선택해 주세요", status.HTTP_400_BAD_REQUEST)
+
+        try:
+            probe = Image.open(uploaded)
+            probe.verify()
+        except (UnidentifiedImageError, OSError):
+            return err("VALIDATION_ERROR", "지원하지 않는 이미지 형식입니다", status.HTTP_400_BAD_REQUEST)
+        uploaded.seek(0)
+
+        # 처방전은 표 안 작은 글자가 많아 사진(1600/85)보다 더 크고 선명하게 남긴다.
+        img = ImageOps.exif_transpose(Image.open(uploaded)).convert("RGB")
+        img.thumbnail((2200, 2200))
+        buf = BytesIO()
+        img.save(buf, "JPEG", quality=92)
+        clean_bytes = buf.getvalue()
+
+        if prescription is None:
+            prescription = Prescription(surgery=s)
+        if prescription.source_image:
+            prescription.source_image.delete(save=False)
+        prescription.source_image.save(
+            f"{s.id}_prescription.jpg", ContentFile(clean_bytes), save=False
+        )
+        prescription.ocr_status = Prescription.OcrStatus.PENDING
+        prescription.save()
+
+        draft, provider = extract_prescription(clean_bytes, "image/jpeg")
+        draft_serializer = (
+            PrescriptionDraftImportSerializer(data=draft) if draft else None
+        )
+        if draft_serializer is None or not draft_serializer.is_valid():
+            prescription.ocr_status = Prescription.OcrStatus.FAILED
+            prescription.save(update_fields=["ocr_status"])
+            return err(
+                "OCR_FAILED",
+                "처방전을 인식하지 못했습니다. 정보를 직접 입력해 주세요",
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+
+        validated = draft_serializer.validated_data
+        ocr_id = f"live-{uuid4()}"
+        prescription.ocr_raw = {
+            "ocr_id": ocr_id, "draft": _json_ready(validated), "provider": provider,
+        }
+        prescription.ocr_status = Prescription.OcrStatus.DONE
+        prescription.save(update_fields=["ocr_raw", "ocr_status"])
+
+        items = validated["items"]
+        regular_count = sum(not item["is_prn"] for item in items)
+        return Response({
+            "ocr_id": ocr_id,
+            "ocr_status": prescription.ocr_status,
+            **_json_ready(validated),
+            "regular_count": regular_count,
+            "prn_count": len(items) - regular_count,
+        }, status=status.HTTP_201_CREATED)
 
 
 class PrescriptionConfirmView(APIView):
