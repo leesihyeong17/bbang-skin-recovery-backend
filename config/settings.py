@@ -246,3 +246,5 @@ OPENAI_MODEL = get_secret("OPENAI_MODEL")
 TRANSLATION_TIMEOUT = 6          # 초. 상담 전송이 이 이상 걸리면 원문만 저장한다
 
 REPORT_POLISH_TIMEOUT = 8
+
+OCR_TIMEOUT = 25
