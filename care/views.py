@@ -496,12 +496,12 @@ class OnboardingSurgeryView(APIView):
         name = pick(p.name, lang)
         return Response({
             "rows": [
-                {"label": "시술", "value": pick(s.procedure_type.name, lang)},
-                {"label": "상세", "value": pick(s.detail, lang)},
-                {"label": "수술일", "value": s.surgery_date},
-                {"label": "병원",
+                {"key": "procedure_type", "value": pick(s.procedure_type.name, lang)},
+                {"key": "detail", "value": pick(s.detail, lang)},
+                {"key": "surgery_date", "value": s.surgery_date},
+                {"key": "clinic",
                  "value": f"{pick(s.clinic.name, lang)} · {pick(s.surgeon.name, lang)}"},
-                {"label": "환자",
+                {"key": "patient",
                  "value": f"{name} ({p.name_romaji})" if p.name_romaji else name},
             ],
             "editable": False,
