@@ -14,7 +14,7 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from config.utils import api_error, t
+from config.utils import api_error, resolve_lang, t
 
 from .models import Patient
 from .serializers import PatientSerializer
@@ -30,7 +30,6 @@ class LoginView(APIView):
     def post(self, request):
         code = (request.data.get("patient_code") or "").strip()
         dob = (request.data.get("dob") or "").strip()      # 화면 입력 그대로 "19940512"
-        lang = request.data.get("lang")
 
         if not code or not dob:
             return api_error("VALIDATION_ERROR", "환자 ID와 생년월일을 입력해 주세요")
@@ -41,12 +40,8 @@ class LoginView(APIView):
                 "INVALID_CREDENTIALS", "ID 또는 생년월일이 일치하지 않습니다", 401
             )
 
-        # 언어는 최초 로그인에만 반영. 이후 값은 무시한다 (명세서 1.2 "언어는 1회 선택")
-        if lang and not patient.lang_locked and lang in dict(Patient.Lang.choices):
-            patient.lang = lang
-            patient.lang_locked_at = timezone.now()
-            patient.save(update_fields=["lang", "lang_locked_at"])
-
+        # Splash 선택 언어는 UI 우선값으로 처리하고, 환자 DB lang은 문맥용으로 남긴다.
+        # 서버가 로그인 시점에 patient.lang를 덮어써서 UI 언어와 문맥 언어를 섞지 않는다.
         surgery = patient.surgery
         refresh = RefreshToken.for_user(patient)
 
@@ -82,7 +77,7 @@ class RefreshView(TokenRefreshView):
 class MeView(APIView):
     def get(self, request):
         patient = request.user
-        lang = patient.lang
+        lang = resolve_lang(request, default=patient.lang or "ko")
         data = {"patient": PatientSerializer(patient).data}
 
         surgery = patient.surgery

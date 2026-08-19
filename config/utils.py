@@ -6,6 +6,8 @@
 """
 from rest_framework.response import Response
 
+VALID_LANGS = {"ko", "ja", "en"}
+
 
 def t(field, lang="ko"):
     """다국어 JSONField를 문자열 하나로 푼다.
@@ -17,6 +19,43 @@ def t(field, lang="ko"):
     if not isinstance(field, dict):
         return field or ""
     return field.get(lang) or field.get("ko") or ""
+
+
+def resolve_lang(request, default="ko"):
+    """UI 언어는 요청 스코프를 우선한다. 사용자 저장값은 fallback이다.
+
+    스플래시 선택값이 화면 우선순위를 결정하고, patient.lang는 문맥/리포트용 값으로 남는다.
+    """
+    if request is None:
+        return default
+
+    data = getattr(request, "data", {}) or {}
+    query = getattr(request, "query_params", {}) or {}
+    meta = getattr(request, "META", {}) or {}
+
+    for mapping, key_names in ((data, ("lang", "ui_lang", "language")),
+                              (query, ("lang", "ui_lang", "language"))):
+        if isinstance(mapping, dict):
+            for key in key_names:
+                value = mapping.get(key)
+                if value in VALID_LANGS:
+                    return value
+
+    header_lang = meta.get("HTTP_X_UI_LANGUAGE") or meta.get("HTTP_X_LANG")
+    if header_lang in VALID_LANGS:
+        return header_lang
+
+    accept = meta.get("HTTP_ACCEPT_LANGUAGE", "")
+    if accept:
+        candidate = accept.split(",")[0].split("-")[0].strip()
+        if candidate in VALID_LANGS:
+            return candidate
+
+    user_lang = getattr(getattr(request, "user", None), "lang", None)
+    if user_lang in VALID_LANGS:
+        return user_lang
+
+    return default
 
 
 def api_error(code, message, status=400):
