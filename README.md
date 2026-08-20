@@ -6,7 +6,7 @@
 
 수술 당일을 `D+0`으로 두고 `D+120`까지, 오늘 뭘 해야 하는지 · 뭘 해도 되는지 · 오늘 상태가 어땠는지를 매일 같은 형식으로 기록합니다. 쌓인 기록은 병원 상담에 자동 첨부되고, 귀국 후에는 현지 의료기관에 보여줄 요약 문서로도 쓰입니다.
 
-**데모 케이스**: 코성형(융비술) · 일본인 환자 사토 유이 · 수술일 2026-08-03 · 귀국 D+14
+**데모 케이스**: 코성형(융비술) · 일본인 환자 사토 유이
 
 **배포**: [https://naranhi.duckdns.org](https://naranhi.duckdns.org)
 
@@ -71,7 +71,7 @@ consult/    ConsultMessage · translation.py(실시간 번역)
 config/     settings · urls · utils(다국어 · 에러 포맷 공통 헬퍼)
 ```
 
-`Surgery`가 도메인의 뿌리입니다 — 체크인·리포트·상담·처방이 전부 여기 FK로 연결됩니다. 계정 1개는 환자 1명 × 시술 1건으로 고정되어 있습니다(재수술은 병원이 새 계정을 발급).
+`Surgery`가 도메인의 핵심 — 체크인·리포트·상담·처방이 전부 여기 FK로 연결. 계정 1개는 환자 1명 × 시술 1건으로 고정(재수술은 병원이 새 계정을 발급).
 
 ## 실행 방법
 
@@ -81,7 +81,7 @@ poetry run python manage.py migrate
 poetry run python manage.py runserver
 ```
 
-DB·AWS·OpenAI 키 등은 `secrets.json`(git에 포함되지 않음)으로 관리합니다.
+DB·AWS·OpenAI 키 등은 `secrets.json`(git에 포함되지 않음)으로 관리
 
 ```json
 {
