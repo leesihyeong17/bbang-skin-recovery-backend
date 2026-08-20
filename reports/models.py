@@ -26,7 +26,7 @@ class RecoveryReport(models.Model):
     lang = models.CharField(max_length=2)
     day_from = models.IntegerField()
     day_to = models.IntegerField()
-    body = models.JSONField()          # {symptom_flow: [], care_adherence: [], events: []}
+    body = models.JSONField()          # {overview, checkin_days, symptom_flow, routines, weekly_summary, events, next_week}
     meta = models.JSONField(default=dict, blank=True)   # 체크인 건수 · 사진 컷수 · 완주율
     ai_model = models.CharField(max_length=40, blank=True)
     ai_prompt_version = models.CharField(max_length=10, blank=True)
