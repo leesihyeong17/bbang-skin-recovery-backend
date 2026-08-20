@@ -1,0 +1,610 @@
+{
+  "schema_version": "1.0",
+  "mode": "upsert",
+  "dry_run": false,
+  "clinic": {
+    "code": "DEMO-CLINIC",
+    "name": {
+      "ko": "나란히 데모 성형외과",
+      "ja": "ナランヒ・デモ美容外科",
+      "en": "Naranhi Demo Clinic"
+    },
+    "address": {
+      "ko": "서울특별시 강남구 데모로 123",
+      "ja": "ソウル特別市江南区デモ路123",
+      "en": "123 Demo-ro, Gangnam-gu, Seoul"
+    },
+    "tel": "+82-2-1234-5678",
+    "reply_hours": "KST 10:00-19:00",
+    "staff": [
+      {
+        "name": {
+          "ko": "박데모",
+          "ja": "パク・デモ",
+          "en": "Demo Park"
+        },
+        "name_romaji": "PARK DEMO",
+        "role": "director",
+        "license_no": "DEMO-00001"
+      }
+    ]
+  },
+  "protocols": [
+    {
+      "procedure": {
+        "code": "demo-rhinoplasty",
+        "name": {
+          "ko": "코성형 데모",
+          "ja": "鼻形成術デモ",
+          "en": "Demo Rhinoplasty"
+        },
+        "program_days": 120,
+        "protocol_version": "demo-v1",
+        "stage_map": [
+          {
+            "to": 7,
+            "name": {"ko": "초기 안정", "ja": "初期安定", "en": "Early recovery"}
+          },
+          {
+            "to": 28,
+            "name": {"ko": "생활 복귀", "ja": "日常復帰", "en": "Daily return"}
+          },
+          {
+            "to": 120,
+            "name": {"ko": "형태 안정", "ja": "形態安定", "en": "Stabilization"}
+          }
+        ]
+      },
+      "care_tasks": [
+        {
+          "key": "ice",
+          "icon": "🧊",
+          "name": {"ko": "냉찜질", "ja": "冷却", "en": "Cold compress"},
+          "day_from": 0,
+          "day_to": 3,
+          "times_per_day": 4,
+          "interval_days": null,
+          "why": {
+            "ko": "초기 부기 관리를 위한 데모 설명입니다.",
+            "ja": "初期の腫れを管理するためのデモ説明です。",
+            "en": "Demo guidance for early swelling care."
+          },
+          "source_text": {"ko": "[데모 안내문] 수술 후 3일까지 하루 4회 냉찜질합니다."},
+          "source_ref": "데모 안내문 · 코성형 1항",
+          "weight": "1.00",
+          "order": 1
+        },
+        {
+          "key": "saline",
+          "icon": "💧",
+          "name": {"ko": "생리식염수 세척", "ja": "生理食塩水洗浄", "en": "Saline rinse"},
+          "day_from": 0,
+          "day_to": 14,
+          "times_per_day": 3,
+          "interval_days": null,
+          "why": {
+            "ko": "코 안쪽 청결 유지를 위한 데모 설명입니다.",
+            "ja": "鼻の中を清潔に保つためのデモ説明です。",
+            "en": "Demo guidance for keeping the nose clean."
+          },
+          "source_text": {"ko": "[데모 안내문] 2주 동안 하루 3회 생리식염수로 세척합니다."},
+          "source_ref": "데모 안내문 · 코성형 2항",
+          "weight": "1.00",
+          "order": 2
+        }
+      ],
+      "activity_rules": [
+        {
+          "key": "wash",
+          "icon": "🧼",
+          "name": {"ko": "세안", "ja": "洗顔", "en": "Face washing"},
+          "why": {
+            "ko": "부목을 물로부터 보호하기 위한 데모 규칙입니다.",
+            "ja": "ギプスを水から守るためのデモ規則です。",
+            "en": "Demo rule for keeping the splint dry."
+          },
+          "source_text": {"ko": "[데모 안내문] 7일까지 코 부위 세안을 피하고 8일부터 가능합니다."},
+          "source_ref": "데모 안내문 · 코성형 3항",
+          "order": 1,
+          "phases": [
+            {
+              "day_to": 7,
+              "status": "no",
+              "text": {"ko": "코 부위 세안 금지", "ja": "鼻周辺の洗顔禁止", "en": "Do not wash the nose area"},
+              "order": 1
+            },
+            {
+              "day_to": 120,
+              "status": "ok",
+              "text": {"ko": "세안 가능", "ja": "洗顔可能", "en": "Face washing allowed"},
+              "order": 2
+            }
+          ]
+        }
+      ],
+      "variable_questions": [
+        {
+          "key": "pack",
+          "question": {
+            "ko": "코 안에 패킹이 들어 있나요?",
+            "ja": "鼻の中にパッキングがありますか？",
+            "en": "Do you have nasal packing?"
+          },
+          "hint": {"ko": "데모 개인 조건 질문입니다."},
+          "answer_type": "bool",
+          "effects": {},
+          "order": 1
+        }
+      ],
+      "symptom_terms": [
+        {
+          "key": "swelling",
+          "name": {"ko": "부기", "ja": "腫れ", "en": "Swelling"},
+          "medical_term": {"ko": "부기 (edema)", "ja": "浮腫 (edema)", "en": "Edema"},
+          "snomed_code": "",
+          "order": 1
+        },
+        {
+          "key": "pain",
+          "name": {"ko": "통증", "ja": "痛み", "en": "Pain"},
+          "medical_term": {"ko": "통증 (pain)", "ja": "疼痛 (pain)", "en": "Pain"},
+          "snomed_code": "",
+          "order": 2
+        },
+        {
+          "key": "bruise",
+          "name": {"ko": "멍", "ja": "あざ", "en": "Bruising"},
+          "medical_term": {"ko": "반상출혈 (ecchymosis)", "ja": "斑状出血", "en": "Ecchymosis"},
+          "snomed_code": "",
+          "order": 3
+        }
+      ]
+    },
+    {
+      "procedure": {
+        "code": "demo-blepharoplasty",
+        "name": {
+          "ko": "쌍꺼풀 수술 데모",
+          "ja": "二重まぶた手術デモ",
+          "en": "Demo Blepharoplasty"
+        },
+        "program_days": 60,
+        "protocol_version": "demo-v1",
+        "stage_map": [
+          {
+            "to": 7,
+            "name": {"ko": "초기 회복", "ja": "初期回復", "en": "Early recovery"}
+          },
+          {
+            "to": 21,
+            "name": {"ko": "부기 감소", "ja": "腫れ軽減", "en": "Swelling reduction"}
+          },
+          {
+            "to": 60,
+            "name": {"ko": "라인 안정", "ja": "ライン安定", "en": "Line stabilization"}
+          }
+        ]
+      },
+      "care_tasks": [
+        {
+          "key": "eye_ice",
+          "icon": "🧊",
+          "name": {"ko": "눈가 냉찜질", "ja": "目元の冷却", "en": "Eye cold compress"},
+          "day_from": 0,
+          "day_to": 3,
+          "times_per_day": 4,
+          "interval_days": null,
+          "why": {
+            "ko": "눈가 초기 부기 관리를 위한 데모 설명입니다.",
+            "ja": "目元の初期腫脹管理のデモ説明です。",
+            "en": "Demo guidance for early eyelid swelling."
+          },
+          "source_text": {"ko": "[데모 안내문] 3일까지 눈가에 하루 4회 냉찜질합니다."},
+          "source_ref": "데모 안내문 · 눈성형 1항",
+          "weight": "1.00",
+          "order": 1
+        },
+        {
+          "key": "eye_ointment",
+          "icon": "🧴",
+          "name": {"ko": "눈가 연고", "ja": "目元の軟膏", "en": "Eye ointment"},
+          "day_from": 1,
+          "day_to": 7,
+          "times_per_day": 2,
+          "interval_days": null,
+          "why": {
+            "ko": "절개부 관리를 위한 데모 설명입니다.",
+            "ja": "切開部管理のデモ説明です。",
+            "en": "Demo guidance for incision care."
+          },
+          "source_text": {"ko": "[데모 안내문] 7일까지 하루 2회 연고를 바릅니다."},
+          "source_ref": "데모 안내문 · 눈성형 2항",
+          "weight": "1.00",
+          "order": 2
+        }
+      ],
+      "activity_rules": [
+        {
+          "key": "eye_makeup",
+          "icon": "💄",
+          "name": {"ko": "눈 화장", "ja": "アイメイク", "en": "Eye makeup"},
+          "why": {
+            "ko": "절개부 자극을 줄이기 위한 데모 규칙입니다.",
+            "ja": "切開部への刺激を減らすデモ規則です。",
+            "en": "Demo rule for reducing irritation."
+          },
+          "source_text": {"ko": "[데모 안내문] 13일까지 눈 화장을 피하고 14일부터 가능합니다."},
+          "source_ref": "데모 안내문 · 눈성형 3항",
+          "order": 1,
+          "phases": [
+            {
+              "day_to": 13,
+              "status": "no",
+              "text": {"ko": "눈 화장 금지", "ja": "アイメイク禁止", "en": "No eye makeup"},
+              "order": 1
+            },
+            {
+              "day_to": 60,
+              "status": "ok",
+              "text": {"ko": "눈 화장 가능", "ja": "アイメイク可能", "en": "Eye makeup allowed"},
+              "order": 2
+            }
+          ]
+        }
+      ],
+      "variable_questions": [
+        {
+          "key": "incision",
+          "question": {
+            "ko": "절개 방식으로 수술했나요?",
+            "ja": "切開法で手術しましたか？",
+            "en": "Was an incision technique used?"
+          },
+          "hint": {"ko": "데모 개인 조건 질문입니다."},
+          "answer_type": "bool",
+          "effects": {},
+          "order": 1
+        }
+      ],
+      "symptom_terms": [
+        {
+          "key": "swelling",
+          "name": {"ko": "부기", "ja": "腫れ", "en": "Swelling"},
+          "medical_term": {"ko": "부기 (edema)", "ja": "浮腫 (edema)", "en": "Edema"},
+          "snomed_code": "",
+          "order": 1
+        },
+        {
+          "key": "pain",
+          "name": {"ko": "통증", "ja": "痛み", "en": "Pain"},
+          "medical_term": {"ko": "통증 (pain)", "ja": "疼痛 (pain)", "en": "Pain"},
+          "snomed_code": "",
+          "order": 2
+        },
+        {
+          "key": "bruise",
+          "name": {"ko": "멍", "ja": "あざ", "en": "Bruising"},
+          "medical_term": {"ko": "반상출혈 (ecchymosis)", "ja": "斑状出血", "en": "Ecchymosis"},
+          "snomed_code": "",
+          "order": 3
+        }
+      ]
+    },
+    {
+      "procedure": {
+        "code": "demo-facelift",
+        "name": {
+          "ko": "안면거상술 데모",
+          "ja": "フェイスリフトデモ",
+          "en": "Demo Facelift"
+        },
+        "program_days": 120,
+        "protocol_version": "demo-v1",
+        "stage_map": [
+          {
+            "to": 14,
+            "name": {"ko": "초기 회복", "ja": "初期回復", "en": "Early recovery"}
+          },
+          {
+            "to": 60,
+            "name": {"ko": "생활 복귀", "ja": "日常復帰", "en": "Daily return"}
+          },
+          {
+            "to": 120,
+            "name": {"ko": "회복 안정", "ja": "回復安定", "en": "Recovery stabilization"}
+          }
+        ]
+      },
+      "care_tasks": [
+        {
+          "key": "compression",
+          "icon": "🩹",
+          "name": {"ko": "압박밴드 착용", "ja": "圧迫バンド着用", "en": "Compression band"},
+          "day_from": 0,
+          "day_to": 14,
+          "times_per_day": 1,
+          "interval_days": null,
+          "why": {
+            "ko": "초기 부기 관리를 위한 데모 설명입니다.",
+            "ja": "初期の腫れ管理のデモ説明です。",
+            "en": "Demo guidance for early swelling care."
+          },
+          "source_text": {"ko": "[데모 안내문] 2주 동안 안내받은 시간에 압박밴드를 착용합니다."},
+          "source_ref": "데모 안내문 · 안면거상 1항",
+          "weight": "1.00",
+          "order": 1
+        },
+        {
+          "key": "facelift_walk",
+          "icon": "🚶",
+          "name": {"ko": "가벼운 걷기", "ja": "軽い歩行", "en": "Light walking"},
+          "day_from": 1,
+          "day_to": 30,
+          "times_per_day": 3,
+          "interval_days": null,
+          "why": {
+            "ko": "가벼운 활동 유지를 위한 데모 설명입니다.",
+            "ja": "軽い活動を維持するデモ説明です。",
+            "en": "Demo guidance for maintaining light activity."
+          },
+          "source_text": {"ko": "[데모 안내문] 다음 날부터 하루 3회 가볍게 걷습니다."},
+          "source_ref": "데모 안내문 · 안면거상 2항",
+          "weight": "1.00",
+          "order": 2
+        }
+      ],
+      "activity_rules": [
+        {
+          "key": "facelift_exercise",
+          "icon": "🏃",
+          "name": {"ko": "운동", "ja": "運動", "en": "Exercise"},
+          "why": {
+            "ko": "회복 구간의 무리한 활동을 피하기 위한 데모 규칙입니다.",
+            "ja": "回復期間中の激しい活動を避けるデモ規則です。",
+            "en": "Demo rule for avoiding strenuous activity."
+          },
+          "source_text": {"ko": "[데모 안내문] 4주간 운동을 피하고 이후 단계적으로 시작합니다."},
+          "source_ref": "데모 안내문 · 안면거상 3항",
+          "order": 1,
+          "phases": [
+            {
+              "day_to": 28,
+              "status": "no",
+              "text": {"ko": "운동 금지", "ja": "運動禁止", "en": "No exercise"},
+              "order": 1
+            },
+            {
+              "day_to": 60,
+              "status": "care",
+              "text": {"ko": "가벼운 운동부터", "ja": "軽い運動から", "en": "Start with light exercise"},
+              "order": 2
+            },
+            {
+              "day_to": 120,
+              "status": "ok",
+              "text": {"ko": "일반 운동 가능", "ja": "通常運動可能", "en": "Regular exercise allowed"},
+              "order": 3
+            }
+          ]
+        }
+      ],
+      "variable_questions": [
+        {
+          "key": "drain",
+          "question": {
+            "ko": "배액관을 유지하고 있나요?",
+            "ja": "ドレーンを装着していますか？",
+            "en": "Do you currently have a drain?"
+          },
+          "hint": {"ko": "데모 개인 조건 질문입니다."},
+          "answer_type": "bool",
+          "effects": {},
+          "order": 1
+        }
+      ],
+      "symptom_terms": [
+        {
+          "key": "swelling",
+          "name": {"ko": "부기", "ja": "腫れ", "en": "Swelling"},
+          "medical_term": {"ko": "부기 (edema)", "ja": "浮腫 (edema)", "en": "Edema"},
+          "snomed_code": "",
+          "order": 1
+        },
+        {
+          "key": "pain",
+          "name": {"ko": "통증", "ja": "痛み", "en": "Pain"},
+          "medical_term": {"ko": "통증 (pain)", "ja": "疼痛 (pain)", "en": "Pain"},
+          "snomed_code": "",
+          "order": 2
+        },
+        {
+          "key": "bruise",
+          "name": {"ko": "멍", "ja": "あざ", "en": "Bruising"},
+          "medical_term": {"ko": "반상출혈 (ecchymosis)", "ja": "斑状出血", "en": "Ecchymosis"},
+          "snomed_code": "",
+          "order": 3
+        }
+      ]
+    }
+  ],
+  "patients": [
+    {
+      "patient": {
+        "patient_code": "DEMO-2608-001",
+        "name": {"ko": "야마다 하나", "ja": "山田 花", "en": "Hana Yamada"},
+        "name_romaji": "YAMADA HANA",
+        "nationality": "JP",
+        "dob": "1992-04-18",
+        "lang": "ja"
+      },
+      "surgery": {
+        "procedure_code": "demo-rhinoplasty",
+        "surgeon_name_romaji": "PARK DEMO",
+        "surgery_date": "2026-08-10",
+        "detail": {"ko": "실리콘 보형물 코성형 데모", "ja": "シリコン鼻形成デモ", "en": "Silicone rhinoplasty demo"},
+        "session_no": 1,
+        "implant": {"material": "silicone"},
+        "anesthesia": "IV Sedation",
+        "return_date": "2026-08-24"
+      },
+      "appointments": [
+        {
+          "scheduled_at": "2026-08-17T14:00:00+09:00",
+          "title": {"ko": "부목 제거", "ja": "ギプス除去", "en": "Splint removal"},
+          "kind": "visit",
+          "status": "scheduled"
+        }
+      ],
+      "prescription_draft": {
+        "issued_date": "2026-08-10",
+        "timing": "식후",
+        "per_day": 3,
+        "total_days": 6,
+        "items": [
+          {
+            "seq": 1,
+            "drug_name": "데모 항생제 A",
+            "category": "항생제",
+            "dose": "1정",
+            "times_per_day": "3회",
+            "days": "6일",
+            "usage": "매 식후 30분 복용",
+            "is_prn": false
+          },
+          {
+            "seq": 2,
+            "drug_name": "데모 진통제 A",
+            "category": "해열진통제",
+            "dose": "1정",
+            "times_per_day": "필요 시 최대 3회",
+            "days": "3일",
+            "usage": "통증 시 복용",
+            "is_prn": true
+          }
+        ]
+      }
+    },
+    {
+      "patient": {
+        "patient_code": "DEMO-2608-002",
+        "name": {"ko": "스즈키 렌", "ja": "鈴木 蓮", "en": "Ren Suzuki"},
+        "name_romaji": "SUZUKI REN",
+        "nationality": "JP",
+        "dob": "1988-11-02",
+        "lang": "ja"
+      },
+      "surgery": {
+        "procedure_code": "demo-blepharoplasty",
+        "surgeon_name_romaji": "PARK DEMO",
+        "surgery_date": "2026-08-12",
+        "detail": {"ko": "자연유착 쌍꺼풀 데모", "ja": "自然癒着二重デモ", "en": "Natural adhesion blepharoplasty demo"},
+        "session_no": 1,
+        "implant": null,
+        "anesthesia": "Local Anesthesia",
+        "return_date": "2026-08-20"
+      },
+      "appointments": [
+        {
+          "scheduled_at": "2026-08-19T11:00:00+09:00",
+          "title": {"ko": "실밥 제거", "ja": "抜糸", "en": "Suture removal"},
+          "kind": "visit",
+          "status": "scheduled"
+        }
+      ],
+      "prescription_draft": {
+        "issued_date": "2026-08-12",
+        "timing": "식후",
+        "per_day": 2,
+        "total_days": 5,
+        "items": [
+          {
+            "seq": 1,
+            "drug_name": "데모 소염제 B",
+            "category": "소염진통제",
+            "dose": "1정",
+            "times_per_day": "2회",
+            "days": "5일",
+            "usage": "아침·저녁 식후 복용",
+            "is_prn": false
+          },
+          {
+            "seq": 2,
+            "drug_name": "데모 위보호제 B",
+            "category": "위 보호제",
+            "dose": "1정",
+            "times_per_day": "2회",
+            "days": "5일",
+            "usage": "아침·저녁 식후 복용",
+            "is_prn": false
+          }
+        ]
+      }
+    },
+    {
+      "patient": {
+        "patient_code": "DEMO-2608-003",
+        "name": {"ko": "왕메이", "ja": "ワン・メイ", "en": "Mei Wang"},
+        "name_romaji": "WANG MEI",
+        "nationality": "CN",
+        "dob": "1985-07-23",
+        "lang": "en"
+      },
+      "surgery": {
+        "procedure_code": "demo-facelift",
+        "surgeon_name_romaji": "PARK DEMO",
+        "surgery_date": "2026-08-14",
+        "detail": {"ko": "미니 안면거상 데모", "ja": "ミニフェイスリフトデモ", "en": "Mini facelift demo"},
+        "session_no": 1,
+        "implant": null,
+        "anesthesia": "IV Sedation",
+        "return_date": "2026-08-28"
+      },
+      "appointments": [
+        {
+          "scheduled_at": "2026-08-21T15:00:00+09:00",
+          "title": {"ko": "경과 확인", "ja": "経過確認", "en": "Follow-up"},
+          "kind": "visit",
+          "status": "scheduled"
+        }
+      ],
+      "prescription_draft": {
+        "issued_date": "2026-08-14",
+        "timing": "식후",
+        "per_day": 3,
+        "total_days": 7,
+        "items": [
+          {
+            "seq": 1,
+            "drug_name": "데모 항생제 C",
+            "category": "항생제",
+            "dose": "1정",
+            "times_per_day": "3회",
+            "days": "7일",
+            "usage": "매 식후 30분 복용",
+            "is_prn": false
+          },
+          {
+            "seq": 2,
+            "drug_name": "데모 부기약 C",
+            "category": "부기 완화",
+            "dose": "1정",
+            "times_per_day": "3회",
+            "days": "7일",
+            "usage": "매 식후 30분 복용",
+            "is_prn": false
+          },
+          {
+            "seq": 3,
+            "drug_name": "데모 진통제 C",
+            "category": "해열진통제",
+            "dose": "1정",
+            "times_per_day": "필요 시 최대 3회",
+            "days": "4일",
+            "usage": "통증 시 복용",
+            "is_prn": true
+          }
+        ]
+      }
+    }
+  ]
+}
