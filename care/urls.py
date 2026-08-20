@@ -20,4 +20,5 @@ urlpatterns = [
 
     path("prescriptions/ocr", views.PrescriptionOCRView.as_view()),
     path("prescriptions/confirm", views.PrescriptionConfirmView.as_view()),
+    path("prescriptions/detail", views.PrescriptionDetailView.as_view()),
 ]

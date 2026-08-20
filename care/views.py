@@ -302,6 +302,53 @@ class PrescriptionConfirmView(APIView):
             "prn_count": len(draft["items"]) - regular_count,
         }, status=status.HTTP_201_CREATED)
 
+
+class PrescriptionDetailView(APIView):
+    """확정된 처방전의 약 목록 조회.
+
+    확정 전엔 GET /prescriptions/ocr로 draft를 보고, 확정 순간부터는
+    ocr_raw가 아니라 PrescriptionItem(정본)에서 그대로 내려준다.
+    """
+
+    def get(self, request):
+        s = get_surgery(request)
+        if s is None:
+            return err("ONBOARDING_REQUIRED", "등록된 시술이 없습니다", status.HTTP_403_FORBIDDEN)
+
+        prescription = getattr(s, "prescription", None)
+        if prescription is None or prescription.confirmed_at is None:
+            return err(
+                "PRESCRIPTION_NOT_FOUND",
+                "확정된 처방전이 없습니다",
+                status.HTTP_404_NOT_FOUND,
+            )
+
+        items = list(prescription.items.order_by("seq"))
+        regular_count = sum(not item.is_prn for item in items)
+        return Response({
+            "issued_date": prescription.issued_date,
+            "timing": prescription.timing,
+            "per_day": prescription.per_day,
+            "total_days": prescription.total_days,
+            "confirmed_at": prescription.confirmed_at,
+            "items": [
+                {
+                    "seq": item.seq,
+                    "drug_name": item.drug_name,
+                    "category": item.category,
+                    "dose": item.dose,
+                    "times_per_day": item.times_per_day,
+                    "days": item.days,
+                    "usage": item.usage,
+                    "is_prn": item.is_prn,
+                }
+                for item in items
+            ],
+            "regular_count": regular_count,
+            "prn_count": len(items) - regular_count,
+        })
+
+
 # ──────────────────────────────────────────────────────────────
 # GET /home — 명세서 3.5
 # ──────────────────────────────────────────────────────────────
