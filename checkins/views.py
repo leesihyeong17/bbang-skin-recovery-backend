@@ -324,8 +324,9 @@ class RecordCalendar(APIView):
 
         # 오늘 이후 날짜에는 has_checkin을 내리지 않는다(계약 727행).
         checked = set(
-            surgery.checkins.filter(date__gte=first, date__lte=last)
-            .values_list("date", flat=True)
+            surgery.checkins.filter(
+                date__gte=first, date__lte=last, completed_at__isnull=False
+            ).values_list("date", flat=True)
         )
 
         days = []
