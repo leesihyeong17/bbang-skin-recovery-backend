@@ -94,12 +94,68 @@ class ActivityRuleImportSerializer(serializers.Serializer):
         return phases
 
 
+class VariableEffectImportSerializer(serializers.Serializer):
+    type = serializers.ChoiceField(choices=["add_task", "add_appointment"])
+
+    # add_task
+    key = serializers.CharField(max_length=30, required=False)
+    day_from = serializers.IntegerField(min_value=0, required=False)
+    day_to = serializers.IntegerField(min_value=0, required=False)
+    times_per_day = serializers.IntegerField(
+        min_value=1, max_value=24, required=False
+    )
+    interval_days = serializers.IntegerField(
+        min_value=1, allow_null=True, required=False
+    )
+    icon = serializers.CharField(max_length=8, required=False, allow_blank=True)
+    name = LocalizedJSONField(required=False)
+    why = LocalizedJSONField(required=False)
+    source_text = LocalizedJSONField(required=False)
+    source_ref = serializers.CharField(
+        max_length=80, required=False, allow_blank=True
+    )
+    weight = serializers.DecimalField(
+        max_digits=3, decimal_places=2, required=False
+    )
+
+    # add_appointment
+    day = serializers.IntegerField(min_value=0, required=False)
+    kind = serializers.ChoiceField(
+        choices=Appointment.Kind.choices,
+        required=False,
+    )
+    title = LocalizedJSONField(required=False)
+
+    def validate(self, attrs):
+        effect_type = attrs["type"]
+        if effect_type == "add_task":
+            missing = [field for field in ("key", "day_from", "day_to") if field not in attrs]
+            if missing:
+                raise serializers.ValidationError(
+                    f"add_task에는 {', '.join(missing)} 필드가 필요합니다"
+                )
+            if attrs["day_from"] > attrs["day_to"]:
+                raise serializers.ValidationError("add_task.day_from은 day_to보다 클 수 없습니다")
+        elif effect_type == "add_appointment":
+            missing = [field for field in ("day", "title") if field not in attrs]
+            if missing:
+                raise serializers.ValidationError(
+                    f"add_appointment에는 {', '.join(missing)} 필드가 필요합니다"
+                )
+        return attrs
+
+
+class VariableEffectsImportSerializer(serializers.Serializer):
+    on_true = VariableEffectImportSerializer(many=True, required=False, default=list)
+    on_false = VariableEffectImportSerializer(many=True, required=False, default=list)
+
+
 class VariableQuestionImportSerializer(serializers.Serializer):
     key = serializers.CharField(max_length=30)
     question = LocalizedJSONField()
     hint = serializers.JSONField(required=False, default=dict)
     answer_type = serializers.ChoiceField(choices=["bool"], default="bool")
-    effects = serializers.JSONField(required=False, default=dict)
+    effects = VariableEffectsImportSerializer(required=False, default=dict)
     order = serializers.IntegerField(min_value=0, default=0)
 
 

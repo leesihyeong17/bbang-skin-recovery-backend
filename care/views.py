@@ -44,7 +44,7 @@ from .models import (Appointment, Prescription, PrescriptionItem, Surgery,
                      VariableAnswer)
 from .services import (DEFAULT_LANG, care_items, completion, next_unlock, pick,
                        stage_of, timeline, validate_task_key, _fill,
-                       _phases_with_from, _medication_task)
+                       _phases_with_from, _medication_task, _overlay_tasks)
 
 from io import BytesIO
 from uuid import uuid4
@@ -461,6 +461,22 @@ class CareItemDetailView(APIView):
                     "source_ref": med["source_ref"],
                 })
 
+            overlay = next(
+                (task for task in _overlay_tasks(s, day) if task["key"] == key),
+                None,
+            )
+            if overlay is not None:
+                return Response({
+                    "kind": "task", "key": overlay["key"], "icon": overlay["icon"],
+                    "name": pick(overlay["name"], lang),
+                    "why": _fill(pick(overlay["why"], lang), s),
+                    "day_from": overlay["day_from"], "day_to": overlay["day_to"],
+                    "times_per_day": overlay["times_per_day"],
+                    "interval_days": overlay["interval_days"],
+                    "source_text": pick(overlay["source_text"], DEFAULT_LANG),
+                    "source_ref": overlay["source_ref"],
+                })
+
             t = get_object_or_404(CareTaskTemplate,
                                   procedure_type=s.procedure_type, key=key)
             return Response({
@@ -646,15 +662,21 @@ class OnboardingCompleteView(APIView):
         for key, value in answers.items():
             if key not in qs:
                 return err("VALIDATION_ERROR", f"알 수 없는 질문 키: {key}")
+            if not isinstance(value, bool):
+                return err("VALIDATION_ERROR", f"{key} 답변은 boolean이어야 합니다")
             VariableAnswer.objects.update_or_create(
                 surgery=s, question=qs[key], defaults={"value": value})
 
-        # 답변에 따라 예약이 추가되는 경우 (콧볼 실밥 제거 D+10 등)
+        # 선택한 답변 분기에 따라 예약이 추가되는 경우 (콧볼 실밥 제거 D+10 등)
         from django.utils import timezone
         for key, value in answers.items():
-            if value is not True:
+            if value is True:
+                branch = "on_true"
+            elif value is False:
+                branch = "on_false"
+            else:
                 continue
-            for eff in (qs[key].effects or {}).get("on_true", []):
+            for eff in (qs[key].effects or {}).get(branch, []):
                 if eff.get("type") != "add_appointment":
                     continue
                 when = timezone.make_aware(

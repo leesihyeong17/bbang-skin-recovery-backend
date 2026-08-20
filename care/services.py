@@ -120,9 +120,8 @@ def state_of(rule, day):
 # ──────────────────────────────────────────────────────────────
 # 개인 변수 오버레이
 # ──────────────────────────────────────────────────────────────
-# VariableQuestion.effects에는 key/기간만 있고 표시 문구가 없습니다.
-# effects 해석기를 일반화하는 건 v1 범위 밖이라(초안 D6 축약안) 여기 하드코딩합니다.
-# 질문이 늘어나면 이 dict에 항목을 추가하세요.
+# 예전 seed는 effects에 표시 문구가 없어 아래 값을 fallback으로 사용합니다.
+# 새 import는 effect 자체에 name/why/source_text/source_ref를 넣을 수 있습니다.
 OVERLAY_TASKS = {
     "packing_removal": {
         "icon": "",
@@ -138,13 +137,17 @@ OVERLAY_TASKS = {
 
 
 def _overlay_tasks(surgery, day):
-    """VariableAnswer가 true인 질문의 effects.on_true 중 add_task를 적용합니다."""
+    """선택한 답변 분기의 add_task 효과를 그날의 개인 루틴에 적용합니다."""
     items = []
     answers = surgery.variable_answers.select_related("question")
     for ans in answers:
-        if ans.value is not True:
+        if ans.value is True:
+            branch = "on_true"
+        elif ans.value is False:
+            branch = "on_false"
+        else:
             continue
-        for eff in (ans.question.effects or {}).get("on_true", []):
+        for eff in (ans.question.effects or {}).get(branch, []):
             if eff.get("type") != "add_task":
                 continue
             key = eff["key"]
@@ -153,16 +156,16 @@ def _overlay_tasks(surgery, day):
             meta = OVERLAY_TASKS.get(key, {})
             items.append({
                 "key": key,
-                "icon": meta.get("icon", ""),
-                "name": meta.get("name", key),
-                "why": meta.get("why", ""),
-                "source_text": meta.get("source_text", ""),
-                "source_ref": meta.get("source_ref", ""),
+                "icon": eff.get("icon") or meta.get("icon", ""),
+                "name": eff.get("name") or meta.get("name", key),
+                "why": eff.get("why") or meta.get("why", ""),
+                "source_text": eff.get("source_text") or meta.get("source_text", ""),
+                "source_ref": eff.get("source_ref") or meta.get("source_ref", ""),
                 "day_from": eff.get("day_from", 0),
                 "day_to": eff.get("day_to", 0),
                 "times_per_day": eff.get("times_per_day", 1),
-                "interval_days": None,
-                "weight": 1.0,
+                "interval_days": eff.get("interval_days"),
+                "weight": float(eff.get("weight", 1.0)),
                 "source": "overlay",
             })
     return items

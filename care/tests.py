@@ -5,9 +5,14 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Clinic, Patient
 from checkins.models import SymptomTerm
-from protocols.models import ActivityRuleTemplate, CareTaskTemplate, ProcedureType
+from protocols.models import (
+    ActivityRuleTemplate,
+    CareTaskTemplate,
+    ProcedureType,
+    VariableQuestion,
+)
 
-from .models import Prescription, Surgery
+from .models import Prescription, Surgery, VariableAnswer
 
 
 def import_payload():
@@ -157,6 +162,69 @@ class ClinicDataImportTests(APITestCase):
         self.assertTrue(response.data["dry_run"])
         self.assertFalse(Clinic.objects.filter(code="IMPORT-HOSP").exists())
         self.assertFalse(Patient.objects.filter(patient_code="IMPORT-PATIENT-1").exists())
+
+    def test_imported_question_effect_adds_localized_overlay_task(self):
+        self.client.force_authenticate(self.admin)
+        payload = import_payload()
+        payload["protocols"][0]["variable_questions"] = [{
+            "key": "contact_lens_user",
+            "question": {"ko": "평소 콘택트렌즈를 착용하시나요?"},
+            "hint": {"ko": "수술 후에는 안경을 사용해주세요."},
+            "answer_type": "bool",
+            "effects": {
+                "on_true": [{
+                    "type": "add_task",
+                    "key": "use_glasses",
+                    "day_from": 0,
+                    "day_to": 14,
+                    "times_per_day": 1,
+                    "icon": "👓",
+                    "name": {"ko": "안경 사용 확인"},
+                    "why": {"ko": "각막 자극을 줄이기 위한 루틴입니다."},
+                    "source_text": {"ko": "수술 후 14일까지 콘택트렌즈 착용 금지"},
+                    "source_ref": "수술 후 주의사항 · 콘택트렌즈",
+                }],
+                "on_false": [],
+            },
+            "order": 1,
+        }]
+
+        response = self.client.post(self.url, payload, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+
+        patient = Patient.objects.get(patient_code="IMPORT-PATIENT-1")
+        surgery = Surgery.objects.get(patient=patient)
+        question = VariableQuestion.objects.get(
+            procedure_type=surgery.procedure_type,
+            key="contact_lens_user",
+        )
+        VariableAnswer.objects.create(surgery=surgery, question=question, value=True)
+
+        self.client.force_authenticate(patient)
+        home = self.client.get("/api/v1/home?day=0")
+        self.assertEqual(home.status_code, 200, home.data)
+        task = next(item for item in home.data["tasks"] if item["key"] == "use_glasses")
+        self.assertEqual(task["name"], "안경 사용 확인")
+        self.assertEqual(task["source"], "overlay")
+
+        detail = self.client.get("/api/v1/care-items/task/use_glasses?day=0")
+        self.assertEqual(detail.status_code, 200, detail.data)
+        self.assertEqual(detail.data["why"], "각막 자극을 줄이기 위한 루틴입니다.")
+        self.assertEqual(detail.data["source_ref"], "수술 후 주의사항 · 콘택트렌즈")
+
+    def test_add_task_effect_requires_key_and_day_range(self):
+        self.client.force_authenticate(self.admin)
+        payload = import_payload()
+        payload["protocols"][0]["variable_questions"] = [{
+            "key": "invalid_effect",
+            "question": {"ko": "잘못된 효과인가요?"},
+            "effects": {"on_true": [{"type": "add_task"}]},
+        }]
+
+        response = self.client.post(self.url, payload, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("key", response.data["error"]["message"])
 
     def test_confirmed_prescription_cannot_be_overwritten_and_import_rolls_back(self):
         self.client.force_authenticate(self.admin)
